@@ -8,12 +8,24 @@ app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
+// Add a health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", message: "Server is running" });
+});
+
 // Server Listener
-app.listen(PORT, () => {
-  connectToDB();
-  console.log(
-    `Server is running at port *${PORT} in *${process.env.NODE_ENV}Mode`
-  );
+app.listen(PORT, async () => {
+  try {
+    await connectToDB();
+    console.log(
+      `Server is running at port *${PORT} in *${process.env.NODE_ENV}Mode`
+    );
+  } catch (error) {
+    console.error("Failed to connect to database:", error);
+    console.log(
+      `Server is running at port *${PORT} in *${process.env.NODE_ENV}Mode (without database)`
+    );
+  }
 });
 
 process.on("uncaughtException", (err) => {

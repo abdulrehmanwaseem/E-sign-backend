@@ -7,7 +7,8 @@
   "scripts": {
     "start": "SET NODE_ENV=PRODUCTION & node server.js",
     "dev": "SET NODE_ENV=DEVELOPMENT & nodemon server.js",
-    "build": "npx prisma generate"
+    "build": "npx prisma generate",
+    "postinstall": "npx prisma generate"
   },
   "author": "Abdul Rehman",
   "license": "MIT",
@@ -22,9 +23,7 @@
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
     "express-validator": "^7.2.1",
-    "jsonwebtoken": "^9.0.2"
-  },
-  "devDependencies": {
+    "jsonwebtoken": "^9.0.2",
     "prisma": "^6.13.0"
   }
 }

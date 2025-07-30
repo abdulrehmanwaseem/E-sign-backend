@@ -6,6 +6,7 @@ import { prisma } from "../config/dbConnection.js";
 
 const isAuthenticated = async (req, res, next) => {
   const token = req.cookies[USER_TOKEN];
+  console.log(token, req.cookies);
   if (!token || token === undefined) {
     return next(new ApiError("Unauthorized!", 401));
   }
