@@ -7,9 +7,11 @@ import { corsOptions } from "./src/constants/options.js";
 import errorMiddleware from "./src/middlewares/errorMiddleware.js";
 import cron from "node-cron";
 import fetch from "node-fetch";
+import passport from "./src/config/passport.js";
 
 //* Routes:
 import { authRouter } from "./src/routes/auth.routes.js";
+import { oAuthRouter } from "./src/routes/oauth.routes.js";
 
 //* Setup:
 export const app = express();
@@ -42,7 +44,11 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cookieParser());
 
+// Initialize Passport
+app.use(passport.initialize());
+
 //* Routes:
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/oauth", oAuthRouter);
 
 app.use(errorMiddleware);

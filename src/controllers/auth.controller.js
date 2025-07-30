@@ -1,21 +1,9 @@
 import bcrypt from "bcryptjs";
 import TryCatch from "express-async-handler";
-import jwt from "jsonwebtoken";
 import { prisma } from "../config/dbConnection.js";
 import { ApiError } from "../utils/ApiError.js";
 import { USER_TOKEN, cookieOptions } from "../constants/options.js";
-
-const generateJwtToken = (user) => {
-  return jwt.sign(
-    {
-      id: user.id,
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: process.env.JWT_EXPIRES_IN,
-    }
-  );
-};
+import { generateJwtToken } from "../utils/jwtUtils.js";
 
 const signup = TryCatch(async (req, res, next) => {
   const { email, password } = req.body;
@@ -37,10 +25,15 @@ const signup = TryCatch(async (req, res, next) => {
     data: {
       email,
       password: hashedPassword,
+      provider: "credentials",
     },
     select: {
       id: true,
       email: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+      provider: true,
     },
   });
 
@@ -52,8 +45,8 @@ const signup = TryCatch(async (req, res, next) => {
 
   res.status(201).cookie(USER_TOKEN, token, cookieOptions).json({
     status: "success",
-    message: "User registered succesfully",
-    createdUser,
+    message: "User registered successfully",
+    user: createdUser,
   });
 });
 
@@ -66,6 +59,10 @@ const login = TryCatch(async (req, res, next) => {
     return next(new ApiError("User Does Not Exists, Try another Email", 400));
   }
 
+  if (!user.password) {
+    return next(new ApiError("Please login with your OAuth provider", 400));
+  }
+
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) {
     return next(new ApiError("Invalid email or password", 400));
@@ -76,6 +73,10 @@ const login = TryCatch(async (req, res, next) => {
     select: {
       id: true,
       email: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+      provider: true,
     },
   });
   if (!loggedInUser) {
@@ -86,8 +87,8 @@ const login = TryCatch(async (req, res, next) => {
 
   res.status(200).cookie(USER_TOKEN, token, cookieOptions).json({
     status: "success",
-    loggedInUser,
-    message: "Logged In Succesfully",
+    user: loggedInUser,
+    message: "Logged In Successfully",
   });
 });
 

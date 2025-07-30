@@ -14,9 +14,17 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String?  // Optional for OAuth users
+  firstName     String?
+  lastName      String?
+  avatar        String?
+  provider      String?  // "google", "apple", "credentials"
+  providerId    String?  // OAuth provider's user ID
+  isEmailVerified Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([provider, providerId])
 }
