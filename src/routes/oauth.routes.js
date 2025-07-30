@@ -23,7 +23,11 @@ oAuthRouter.get(
     );
 
     res.cookie(USER_TOKEN, token, cookieOptions);
-    res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+
+    // Redirect to a callback page that will close popup and update parent
+    res.redirect(
+      `${process.env.CLIENT_URL}/auth/callback?success=true&provider=google`
+    );
   }
 );
 
@@ -45,7 +49,11 @@ oAuthRouter.get(
     );
 
     res.cookie(USER_TOKEN, token, cookieOptions);
-    res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+
+    // Redirect to a callback page that will close popup and update parent
+    res.redirect(
+      `${process.env.CLIENT_URL}/auth/callback?success=true&provider=apple`
+    );
   }
 );
 
