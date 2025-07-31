@@ -18,6 +18,14 @@ const googleCallback = TryCatch(async (req, res, next) => {
 
     // Set cookie
     res.cookie(USER_TOKEN, token, cookieOptions);
+
+    // Redirect to client with success message
+    const redirectUrl = `${process.env.CLIENT_URL}/dashboard`;
+    res.redirect(redirectUrl);
+  } else {
+    // Redirect to client with error
+    const redirectUrl = `${process.env.CLIENT_URL}/dashboard?isError=false`;
+    res.redirect(redirectUrl);
   }
 });
 
@@ -37,6 +45,14 @@ const appleCallback = TryCatch(async (req, res, next) => {
 
     // Set cookie
     res.cookie(USER_TOKEN, token, cookieOptions);
+
+    // Redirect to client with success message
+    const redirectUrl = `${process.env.CLIENT_URL}/dashboard`;
+    res.redirect(redirectUrl);
+  } else {
+    // Redirect to client with error
+    const redirectUrl = `${process.env.CLIENT_URL}/dashboard?isError=true`;
+    res.redirect(redirectUrl);
   }
 });
 
