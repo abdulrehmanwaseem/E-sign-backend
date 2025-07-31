@@ -20,7 +20,7 @@ const rootDir = resolve(__dirname, "..");
 
 cron.schedule("*/10 * * * *", async () => {
   try {
-    const res = await fetch(APP_URL);
+    const res = await fetch("https://e-sign-backend.onrender.com");
     console.log(
       `Pinged self at ${new Date().toISOString()} - Status: ${res.status}`
     );
