@@ -1,6 +1,6 @@
 import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import { Strategy as AppleStrategy } from "passport-apple";
+import AppleStrategy from "passport-apple";
+import GoogleStrategy from "passport-google-oauth20";
 import { prisma } from "./dbConnection.js";
 
 // Google OAuth Strategy
@@ -9,7 +9,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      callbackURL: "/api/v1/auth/google/callback",
       scope: ["profile", "email"],
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -18,13 +18,25 @@ passport.use(
         let user = await prisma.user.findFirst({
           where: {
             OR: [
-              { email: profile.emails[0].value },
               { providerId: profile.id, provider: "google" },
+              { email: profile.emails[0].value },
             ],
           },
         });
 
-        if (!user) {
+        if (user) {
+          // Update provider info if user exists but doesn't have OAuth info
+          if (!user.providerId || user.provider !== "google") {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                provider: "google",
+                providerId: profile.id,
+                isEmailVerified: true,
+              },
+            });
+          }
+        } else {
           // Create new user
           user = await prisma.user.create({
             data: {
@@ -34,19 +46,6 @@ passport.use(
               avatar: profile.photos[0]?.value,
               provider: "google",
               providerId: profile.id,
-              isEmailVerified: true,
-            },
-          });
-        } else if (!user.provider) {
-          // Link existing user to Google
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: {
-              provider: "google",
-              providerId: profile.id,
-              firstName: profile.name.givenName,
-              lastName: profile.name.familyName,
-              avatar: profile.photos[0]?.value,
               isEmailVerified: true,
             },
           });
@@ -68,41 +67,49 @@ passport.use(
       teamID: process.env.APPLE_TEAM_ID,
       keyID: process.env.APPLE_KEY_ID,
       privateKeyLocation: process.env.APPLE_PRIVATE_KEY_PATH,
-      callbackURL: process.env.APPLE_CALLBACK_URL,
+      callbackURL: "/api/v1/auth/apple/callback",
       passReqToCallback: true,
     },
     async (req, accessToken, refreshToken, idToken, profile, done) => {
       try {
-        const { email, name } = profile;
+        // Apple doesn't always provide email in profile, so we need to handle it
+        const email = profile.email || req.body?.user?.email;
+
+        if (!email) {
+          return done(new Error("Email is required for Apple OAuth"), null);
+        }
 
         // Check if user already exists
         let user = await prisma.user.findFirst({
           where: {
-            OR: [{ email }, { providerId: profile.id, provider: "apple" }],
+            OR: [
+              { providerId: profile.id, provider: "apple" },
+              { email: email },
+            ],
           },
         });
 
-        if (!user) {
+        if (user) {
+          // Update provider info if user exists but doesn't have OAuth info
+          if (!user.providerId || user.provider !== "apple") {
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: {
+                provider: "apple",
+                providerId: profile.id,
+                isEmailVerified: true,
+              },
+            });
+          }
+        } else {
           // Create new user
           user = await prisma.user.create({
             data: {
-              email,
-              firstName: name?.firstName,
-              lastName: name?.lastName,
+              email: email,
+              firstName: profile.name?.firstName,
+              lastName: profile.name?.lastName,
               provider: "apple",
               providerId: profile.id,
-              isEmailVerified: true,
-            },
-          });
-        } else if (!user.provider) {
-          // Link existing user to Apple
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: {
-              provider: "apple",
-              providerId: profile.id,
-              firstName: name?.firstName,
-              lastName: name?.lastName,
               isEmailVerified: true,
             },
           });
@@ -115,5 +122,30 @@ passport.use(
     }
   )
 );
+
+// Serialize user for session
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+// Deserialize user from session
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        avatar: true,
+        provider: true,
+      },
+    });
+    done(null, user);
+  } catch (error) {
+    done(error, null);
+  }
+});
 
 export default passport;
