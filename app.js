@@ -18,9 +18,11 @@ export const app = express();
 const __dirname = resolve();
 const rootDir = resolve(__dirname, "..");
 
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
 cron.schedule("*/10 * * * *", async () => {
   try {
-    const res = await fetch("https://e-sign-backend.onrender.com");
+    const res = await fetch(`${BASE_URL}/health`);
     console.log(
       `Pinged self at ${new Date().toISOString()} - Status: ${res.status}`
     );
@@ -41,5 +43,9 @@ app.use(passport.initialize());
 //* Routes:
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/oauth", oauthRouter);
+
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
 
 app.use(errorMiddleware);
