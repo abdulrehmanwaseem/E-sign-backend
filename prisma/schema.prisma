@@ -20,5 +20,118 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+   // Relations - ADD THIS LINE
+  documents       Document[]
+
   @@unique([provider, providerId])
+}
+
+model Document {
+  id            String            @id @default(cuid())
+  name          String            
+  fileName      String
+  fileType      String            
+  filePath      String            
+  status        DocumentStatus    @default(PENDING)
+  createdById   String
+  recipientId   String            // Removed @unique to allow multiple docs per recipient
+
+  expiresAt     DateTime?
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  
+  // Relations
+  createdBy     User              @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  recipient     DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  fields        SignatureField[]
+  activities    DocumentActivity[]
+
+  @@index([createdById])
+  @@index([status])
+  @@index([recipientId]) // Add index for better query performance
+}
+
+model DocumentRecipient {
+  id            String           @id @default(cuid())
+  name          String
+  email         String
+  phone         String?
+  accessToken   String           @unique @default(cuid())
+  signedAt      DateTime?
+  viewedAt      DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  
+  // Relations - One recipient can have multiple documents
+  documents     Document[]        
+  fields        SignatureField[]
+
+  @@index([email])
+  @@index([accessToken])
+}
+
+model SignatureField {
+  id            String            @id @default(cuid())
+  documentId    String
+  recipientId   String
+  fieldId       String            // Your frontend field ID
+  fieldType     FieldType
+  pageNumber    Int
+  xPosition     Float
+  yPosition     Float
+  width         Float
+  height        Float
+  fieldValue    String?           // Actual signed/filled value
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  
+  // Relations
+  document      Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  recipient     DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, recipientId])
+}
+
+model DocumentActivity {
+  id            String         @id @default(cuid())
+  documentId    String
+  recipientId   String?
+  action        ActivityAction
+  ipAddress     String?
+  userAgent     String?
+  details       Json?
+  createdAt     DateTime       @default(now())
+  
+  // Relations
+  document      Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+// Enums
+enum DocumentStatus {
+  SIGNED
+  PENDING
+  CANCELLED
+  EXPIRED
+}
+
+enum FieldType {
+  SIGNATURE
+  FULL_NAME
+  DATE
+  EMAIL
+  TITLE
+  ADDRESS
+  INITIALS
+}
+
+enum ActivityAction {
+  CREATED
+  SENT
+  VIEWED
+  SIGNED
+  COMPLETED
+  CANCELLED
 }

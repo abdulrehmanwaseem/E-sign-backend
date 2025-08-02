@@ -36,6 +36,7 @@ const isAuthenticated = async (req, res, next) => {
     req.user = currentUser;
     next();
   } catch (err) {
+    console.log(err);
     return next(
       new ApiError("User Authentication failed. Please log in again.", 400)
     );
