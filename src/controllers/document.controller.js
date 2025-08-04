@@ -1,39 +1,18 @@
-import asyncHandler from "express-async-handler";
-import fs from "fs/promises";
-import path from "path";
 import crypto from "crypto";
-import { validationResult } from "express-validator";
+import asyncHandler from "express-async-handler";
 import { prisma } from "../config/dbConnection.js";
+import {
+  deleteFileFromCloudinary,
+  uploadFileToCloudinary,
+} from "../lib/cloudinary.js";
 import { ApiError } from "../utils/ApiError.js";
 
 // @desc    Create document and send for signing (Combined flow)
 // @route   POST /api/documents/send-for-signing
 // @access  Private
 export const createAndSendDocument = asyncHandler(async (req, res) => {
-  console.log("Raw request body:", req.body);
-  console.log("Request file:", req.file);
-
-  // Parse JSON strings from FormData
-  let recipient, signatureFields;
-  try {
-    recipient =
-      typeof req.body.recipient === "string"
-        ? JSON.parse(req.body.recipient)
-        : req.body.recipient;
-    signatureFields =
-      typeof req.body.signatureFields === "string"
-        ? JSON.parse(req.body.signatureFields)
-        : req.body.signatureFields;
-  } catch (parseError) {
-    console.error("JSON parsing error:", parseError);
-    throw new ApiError(
-      "Invalid JSON data in recipient or signatureFields",
-      400
-    );
-  }
-
-  console.log("Parsed recipient:", recipient);
-  console.log("Parsed signatureFields:", signatureFields);
+  const recipient = JSON.parse(req.body.recipient);
+  const signatureFields = JSON.parse(req.body.signatureFields);
 
   const { name, fileType } = req.body;
   const createdById = req.user.id;
@@ -46,35 +25,15 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
     throw new ApiError("Recipient and signature fields are required", 400);
   }
 
-  // Basic validation
-  if (!recipient.name || !recipient.email) {
-    throw new ApiError("Recipient name and email are required", 400);
-  }
-
   if (!name || !fileType) {
     throw new ApiError("Document name and file type are required", 400);
   }
 
   try {
-    // Step 1: Handle file upload and storage
-    const fileName = `${Date.now()}-${crypto.randomUUID()}${path.extname(
-      req.file.originalname
-    )}`;
-    const uploadPath = path.join(
-      process.cwd(),
-      "uploads",
-      "documents",
-      fileName
-    );
+    // Step 1: Upload file to Cloudinary
+    const cloudinaryResult = await uploadFileToCloudinary(req.file);
 
-    // Ensure directory exists
-    await fs.mkdir(path.dirname(uploadPath), { recursive: true });
-
-    // Move file from temp to documents directory
-    await fs.rename(req.file.path, uploadPath);
-
-    const filePath = `uploads/documents/${fileName}`;
-    const fileUrl = `${req.protocol}://${req.get("host")}/${filePath}`;
+    console.log("Cloudinary upload result:", cloudinaryResult); // Debug log
 
     // Step 2: Create or find recipient
     let documentRecipient = await prisma.documentRecipient.findFirst({
@@ -101,7 +60,9 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
         name,
         fileName: req.file.originalname,
         fileType,
-        filePath,
+        filePath: cloudinaryResult.url, // Store Cloudinary URL
+        publicId: cloudinaryResult.public_id, // Store public_id for deletion
+        extension: cloudinaryResult.extension, // Store file extension
         createdById,
         recipientId: documentRecipient.id,
         status: "PENDING", // Use PENDING status, SENT is an activity action
@@ -175,27 +136,11 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
       success: true,
       message: "Document created and sent for signing successfully",
       data: {
-        document: {
-          ...document,
-          fileUrl,
-        },
-        recipient: documentRecipient,
-        signingUrl: `${process.env.CLIENT_URL}/sign/${documentRecipient.accessToken}`,
-        fieldsCount: signatureFields.length,
+        signingUrl: `${process.env.CLIENT_URL}/signing/${documentRecipient.accessToken}`,
       },
     });
   } catch (error) {
     console.error("Create and send document error:", error);
-
-    // Clean up uploaded file if database operations failed
-    try {
-      if (req.file && req.file.path) {
-        await fs.unlink(req.file.path);
-      }
-    } catch (cleanupError) {
-      console.warn("File cleanup warning:", cleanupError.message);
-    }
-
     throw new ApiError("Failed to create and send document", 500);
   }
 });
@@ -311,11 +256,8 @@ export const getDocumentById = asyncHandler(async (req, res) => {
       throw new ApiError(404, "Document not found");
     }
 
-    // Generate file URL if needed
-    let fileUrl = document.filePath;
-    if (!document.filePath.startsWith("http")) {
-      fileUrl = `${req.protocol}://${req.get("host")}/${document.filePath}`;
-    }
+    // File URL is already complete for Cloudinary uploads
+    const fileUrl = document.filePath;
 
     res.status(200).json({
       success: true,
@@ -387,11 +329,8 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
       });
     }
 
-    // Generate file URL
-    let fileUrl = document.filePath;
-    if (!document.filePath.startsWith("http")) {
-      fileUrl = `${req.protocol}://${req.get("host")}/${document.filePath}`;
-    }
+    // File URL is already complete for Cloudinary uploads
+    const fileUrl = document.filePath;
 
     res.status(200).json({
       success: true,
@@ -497,49 +436,6 @@ export const submitSignature = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Delete document
-// @route   DELETE /api/documents/:id
-// @access  Private
-export const deleteDocument = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const createdById = req.user.id;
-
-  try {
-    const document = await prisma.document.findFirst({
-      where: {
-        id,
-        createdById,
-      },
-    });
-
-    if (!document) {
-      throw new ApiError(404, "Document not found");
-    }
-
-    // Delete file from storage
-    if (!document.filePath.startsWith("http")) {
-      try {
-        await fs.unlink(path.join(process.cwd(), document.filePath));
-      } catch (error) {
-        console.warn("File deletion warning:", error.message);
-      }
-    }
-
-    // Delete document (cascade will handle related records)
-    await prisma.document.delete({
-      where: { id },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Document deleted successfully",
-    });
-  } catch (error) {
-    console.error("Delete document error:", error);
-    throw new ApiError(500, "Failed to delete document");
-  }
-});
-
 // @desc    Get document audit trail
 // @route   GET /api/documents/:id/audit-trail
 // @access  Private
@@ -572,5 +468,54 @@ export const getDocumentAuditTrail = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error("Get audit trail error:", error);
     throw new ApiError(500, "Failed to fetch audit trail");
+  }
+});
+
+// @desc    Delete document
+// @route   DELETE /api/documents/:id
+// @access  Private
+export const deleteDocument = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const createdById = req.user.id;
+
+  try {
+    // Find the document first to get cloudinary info
+    const document = await prisma.document.findFirst({
+      where: {
+        id,
+        createdById, // Ensure user can only delete their own documents
+      },
+    });
+
+    if (!document) {
+      throw new ApiError("Document not found or access denied", 404);
+    }
+
+    // Delete file from Cloudinary if it exists
+    if (document.publicId) {
+      try {
+        const ext = document.fileName.split(".").pop().toLowerCase();
+        const resource_type = ["pdf", "doc", "docx"].includes(ext)
+          ? "raw"
+          : "image";
+        await deleteFileFromCloudinary(document.publicId, resource_type);
+      } catch (cloudinaryError) {
+        console.warn("Cloudinary deletion warning:", cloudinaryError.message);
+        // Continue with database deletion even if cloudinary deletion fails
+      }
+    }
+
+    // Delete document from database (this will cascade delete related records)
+    await prisma.document.delete({
+      where: { id },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Document deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete document error:", error);
+    throw new ApiError("Failed to delete document", 500);
   }
 });

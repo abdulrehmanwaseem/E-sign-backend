@@ -4,6 +4,7 @@ import cors from "cors";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+import { v2 as cloudinary } from "cloudinary";
 import passport from "./src/config/passport.js";
 import { corsOptions } from "./src/constants/options.js";
 import errorMiddleware from "./src/middlewares/errorMiddleware.js";
@@ -20,6 +21,12 @@ import documentRouter from "./src/routes/document.routes.js";
 //* Setup:
 export const app = express();
 
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.urlencoded({ extended: false }));
@@ -28,21 +35,6 @@ app.use(cookieParser());
 
 // Initialize Passport
 app.use(passport.initialize());
-
-// Serve static files (uploaded documents) with CORS headers
-app.use(
-  "/uploads",
-  (req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET");
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Origin, X-Requested-With, Content-Type, Accept"
-    );
-    next();
-  },
-  express.static(path.join(__dirname, "uploads"))
-);
 
 //* Routes:
 app.use("/api/v1/auth", authRouter);

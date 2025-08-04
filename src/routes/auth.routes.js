@@ -16,7 +16,7 @@ export const authRouter = Router();
 
 authRouter.route("/signup").post(registerValidator(), validateHandler, signup);
 authRouter.route("/login").post(loginValidator(), validateHandler, login);
-authRouter.route("/logout").get(logout);
+authRouter.route("/logout").post(logout);
 
 // Protected Routes:
 authRouter.get("/me", isAuthenticated, getMyProfile);

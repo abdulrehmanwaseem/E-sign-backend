@@ -102,10 +102,8 @@ const getMyProfile = TryCatch(async (req, res, next) => {
 });
 
 const logout = TryCatch(async (req, res, next) => {
-  res.status(204).clearCookie(USER_TOKEN, cookieOptions).json({
-    status: "success",
-    message: "User Logged out successfully",
-  });
+  res.clearCookie(USER_TOKEN, cookieOptions);
+  res.status(204).end();
 });
 
 export { signup, login, logout, getMyProfile };

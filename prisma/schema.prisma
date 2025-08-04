@@ -20,32 +20,33 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-   // Relations - ADD THIS LINE
   documents       Document[]
 
   @@unique([provider, providerId])
 }
 
 model Document {
-  id            String            @id @default(cuid())
-  name          String            
-  fileName      String
-  fileType      String            
-  filePath      String            
-  status        DocumentStatus    @default(PENDING)
-  createdById   String
-  recipientId   String            // Removed @unique to allow multiple docs per recipient
+  id                 String            @id @default(cuid())
+  name               String            
+  fileName           String
+  fileType           String            
+  filePath           String            
+  publicId           String            // Store Cloudinary public_id for deletion
+  extension          String            // File extension (e.g., pdf, docx)
+  status             DocumentStatus    @default(PENDING)
+  createdById        String
+  recipientId        String            // Removed @unique to allow multiple docs per recipient
 
-  expiresAt     DateTime?
+  expiresAt          DateTime?
 
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
   
   // Relations
-  createdBy     User              @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  recipient     DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  fields        SignatureField[]
-  activities    DocumentActivity[]
+  createdBy          User              @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  recipient          DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  fields             SignatureField[]
+  activities         DocumentActivity[]
 
   @@index([createdById])
   @@index([status])
