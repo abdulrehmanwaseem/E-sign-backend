@@ -6,6 +6,7 @@ import {
   uploadFileToCloudinary,
 } from "../lib/cloudinary.js";
 import { ApiError } from "../utils/ApiError.js";
+import { sendSigningInvitation } from "../lib/emailService.js";
 
 // @desc    Create document and send for signing (Combined flow)
 // @route   POST /api/documents/send-for-signing
@@ -63,6 +64,7 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
         filePath: cloudinaryResult.url, // Store Cloudinary URL
         publicId: cloudinaryResult.public_id, // Store public_id for deletion
         extension: cloudinaryResult.extension, // Store file extension
+        accessToken: crypto.randomUUID(), // Generate unique access token for document
         createdById,
         recipientId: documentRecipient.id,
         status: "PENDING", // Use PENDING status, SENT is an activity action
@@ -129,14 +131,20 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
       }),
     ]);
 
-    // Step 6: TODO - Send email notification to recipient
-    // await sendSigningInvitation(documentRecipient, document);
+    // Step 6: Send email notification to recipient
+    try {
+      await sendSigningInvitation(documentRecipient, document, req.user);
+      console.log("Signing invitation email sent successfully");
+    } catch (emailError) {
+      console.error("Failed to send email notification:", emailError);
+      // Don't throw error - document creation was successful, email is just a notification
+    }
 
     res.status(201).json({
       success: true,
       message: "Document created and sent for signing successfully",
       data: {
-        signingUrl: `${process.env.CLIENT_URL}/signing/${documentRecipient.accessToken}`,
+        signingUrl: `${process.env.CLIENT_URL}/signing/${document.accessToken}`,
       },
     });
   } catch (error) {
@@ -253,7 +261,7 @@ export const getDocumentById = asyncHandler(async (req, res) => {
     });
 
     if (!document) {
-      throw new ApiError(404, "Document not found");
+      throw new ApiError("Document not found", 404);
     }
 
     // File URL is already complete for Cloudinary uploads
@@ -268,7 +276,7 @@ export const getDocumentById = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Get document error:", error);
-    throw new ApiError(500, "Failed to fetch document");
+    throw new ApiError("Failed to fetch document", 500);
   }
 });
 
@@ -279,41 +287,37 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
   const { accessToken } = req.params;
 
   try {
-    const recipient = await prisma.documentRecipient.findUnique({
+    // Find document by its own access token
+    const document = await prisma.document.findUnique({
       where: { accessToken },
       include: {
-        documents: {
-          include: {
-            fields: {
-              orderBy: [{ pageNumber: "asc" }, { yPosition: "asc" }],
-            },
-            createdBy: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
+        recipient: true,
+        fields: {
+          orderBy: [{ pageNumber: "asc" }, { yPosition: "asc" }],
+        },
+        createdBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
           },
         },
       },
     });
 
-    if (!recipient || !recipient.documents.length) {
-      throw new ApiError(404, "Document not found or access denied");
+    if (!document) {
+      throw new ApiError("Document not found or access denied", 404);
     }
-
-    const document = recipient.documents[0]; // Get the first document
 
     // Check if document is expired
     if (document.expiresAt && new Date() > document.expiresAt) {
-      throw new ApiError(410, "Document has expired");
+      throw new ApiError("Document has expired", 410);
     }
 
     // Update viewed status if not already viewed
-    if (!recipient.viewedAt) {
+    if (!document.recipient.viewedAt) {
       await prisma.documentRecipient.update({
-        where: { id: recipient.id },
+        where: { id: document.recipient.id },
         data: { viewedAt: new Date() },
       });
 
@@ -321,7 +325,7 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
       await prisma.documentActivity.create({
         data: {
           documentId: document.id,
-          recipientId: recipient.id,
+          recipientId: document.recipient.id,
           action: "VIEWED",
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
@@ -340,47 +344,46 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
           fileUrl,
         },
         recipient: {
-          id: recipient.id,
-          name: recipient.name,
-          email: recipient.email,
+          id: document.recipient.id,
+          name: document.recipient.name,
+          email: document.recipient.email,
         },
       },
     });
   } catch (error) {
     console.error("Get document for signing error:", error);
-    throw new ApiError(500, "Failed to fetch document for signing");
+    throw new ApiError("Failed to fetch document for signing", 500);
   }
 });
 
 // @desc    Submit signature
 // @route   POST /api/documents/sign/:accessToken/submit
 // @access  Public
-export const submitSignature = asyncHandler(async (req, res) => {
+export const submitSignature = asyncHandler(async (req, res, next) => {
   const { accessToken } = req.params;
   const { signatureData } = req.body;
 
   try {
-    const recipient = await prisma.documentRecipient.findUnique({
+    // Find document by its own access token
+    const document = await prisma.document.findUnique({
       where: { accessToken },
       include: {
-        documents: true,
+        recipient: true,
       },
     });
 
-    if (!recipient || !recipient.documents.length) {
-      throw new ApiError(404, "Document not found or access denied");
+    if (!document) {
+      throw new ApiError("Document not found or access denied", 404);
     }
 
-    const document = recipient.documents[0];
-
     // Check if already signed
-    if (recipient.signedAt) {
-      throw new ApiError(400, "Document has already been signed");
+    if (document.signedAt) {
+      throw new ApiError("Document has already been signed", 400);
     }
 
     // Check if document is expired
     if (document.expiresAt && new Date() > document.expiresAt) {
-      throw new ApiError(410, "Document has expired");
+      throw new ApiError("Document has expired", 410);
     }
 
     // Update signature fields with values
@@ -397,15 +400,14 @@ export const submitSignature = asyncHandler(async (req, res) => {
 
     await Promise.all(updatePromises);
 
-    // Update recipient and document status
+    // Update document with signing info and status
     await Promise.all([
-      prisma.documentRecipient.update({
-        where: { id: recipient.id },
-        data: { signedAt: new Date() },
-      }),
       prisma.document.update({
         where: { id: document.id },
-        data: { status: "SIGNED" },
+        data: {
+          status: "SIGNED",
+          signedAt: new Date(),
+        },
       }),
     ]);
 
@@ -413,7 +415,7 @@ export const submitSignature = asyncHandler(async (req, res) => {
     await prisma.documentActivity.create({
       data: {
         documentId: document.id,
-        recipientId: recipient.id,
+        recipientId: document.recipientId,
         action: "SIGNED",
         ipAddress: req.ip,
         userAgent: req.get("User-Agent"),
@@ -432,7 +434,7 @@ export const submitSignature = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Submit signature error:", error);
-    throw new ApiError(500, "Failed to submit signature");
+    throw new ApiError("Failed to submit signature", 500);
   }
 });
 
@@ -453,7 +455,7 @@ export const getDocumentAuditTrail = asyncHandler(async (req, res) => {
     });
 
     if (!document) {
-      throw new ApiError(404, "Document not found");
+      throw new ApiError("Document not found", 404);
     }
 
     const activities = await prisma.documentActivity.findMany({
@@ -467,7 +469,7 @@ export const getDocumentAuditTrail = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Get audit trail error:", error);
-    throw new ApiError(500, "Failed to fetch audit trail");
+    throw new ApiError("Failed to fetch audit trail", 500);
   }
 });
 

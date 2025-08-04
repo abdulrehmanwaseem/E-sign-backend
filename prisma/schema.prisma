@@ -33,7 +33,9 @@ model Document {
   filePath           String            
   publicId           String            // Store Cloudinary public_id for deletion
   extension          String            // File extension (e.g., pdf, docx)
+  accessToken        String            @unique @default(cuid()) // Unique access token per document
   status             DocumentStatus    @default(PENDING)
+  signedAt           DateTime?         // Track signing at document level
   createdById        String
   recipientId        String            // Removed @unique to allow multiple docs per recipient
 
@@ -120,7 +122,7 @@ enum DocumentStatus {
 
 enum FieldType {
   SIGNATURE
-  FULL_NAME
+  FULLNAME
   DATE
   EMAIL
   TITLE

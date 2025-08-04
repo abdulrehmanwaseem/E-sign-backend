@@ -20,6 +20,8 @@ const isAuthenticated = async (req, res, next) => {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         avatar: true,
         createdAt: true,
       },

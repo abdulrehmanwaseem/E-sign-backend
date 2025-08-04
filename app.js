@@ -17,6 +17,7 @@ const __dirname = path.dirname(__filename);
 import { authRouter } from "./src/routes/auth.routes.js";
 import { oauthRouter } from "./src/routes/oauth.routes.js";
 import documentRouter from "./src/routes/document.routes.js";
+import emailRouter from "./src/routes/email.routes.js";
 
 //* Setup:
 export const app = express();
@@ -40,5 +41,6 @@ app.use(passport.initialize());
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/oauth", oauthRouter);
 app.use("/api/v1/documents", documentRouter);
+app.use("/api/v1/email", emailRouter);
 
 app.use(errorMiddleware);
