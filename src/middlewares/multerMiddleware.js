@@ -3,24 +3,12 @@ import handleMulterError from "../utils/multerApiError.js";
 
 // File filter function
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = [
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "image/jpeg",
-    "image/jpg",
-    "image/png",
-  ];
+  const allowedTypes = ["application/pdf"];
 
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(
-      new Error(
-        "Invalid file type. Only PDF, DOC, DOCX, JPEG, JPG, and PNG files are allowed."
-      ),
-      false
-    );
+    cb(new Error("Invalid file type. Only PDF files are allowed."), false);
   }
 };
 

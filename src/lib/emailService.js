@@ -398,6 +398,42 @@ export const sendCompletionNotification = async (
 };
 
 /**
+ * Send OTP email for email verification
+ * @param {string} email - The email address
+ * @param {string} otp - The 6-digit OTP
+ */
+export const sendOTPEmail = async (email, otp) => {
+  try {
+    const htmlTemplate = createOTPEmailTemplate({ email, otp });
+
+    const mailOptions = {
+      from: {
+        name: process.env.FROM_NAME || "PenginSign",
+        address: process.env.FROM_EMAIL || "93e6cb001@smtp-brevo.com",
+      },
+      to: email,
+      subject: "Email Verification - PenginSign",
+      html: htmlTemplate,
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log("OTP email sent successfully:", result.messageId);
+    return result;
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    throw new Error("Failed to send OTP email");
+  }
+};
+
+/**
+ * Generate a 6-digit OTP
+ * @returns {string} 6-digit OTP
+ */
+export const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+/**
  * Create HTML email template for completion notification
  */
 const createCompletionNotificationTemplate = ({
@@ -607,6 +643,245 @@ const createCompletionNotificationTemplate = ({
                 <br><br>
                 If you're having trouble with the link above, copy and paste the following URL into your browser: <br>
                 ${downloadUrl}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+  `;
+};
+
+/**
+ * Create HTML email template for OTP verification
+ */
+const createOTPEmailTemplate = ({ email, otp }) => {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verification - PenginSign</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4285f4 0%, #667eea 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .verification-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        .message {
+            font-size: 18px;
+            color: #2d3748;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        
+        .otp-container {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px solid #4285f4;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+            position: relative;
+        }
+        
+        .otp-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .otp-code {
+            font-size: 36px;
+            font-weight: 700;
+            color: #4285f4;
+            letter-spacing: 8px;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .expiry-notice {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 25px 0;
+            color: #856404;
+            font-size: 14px;
+        }
+        
+        .expiry-notice strong {
+            color: #533f03;
+        }
+        
+        .instructions {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+            text-align: left;
+        }
+        
+        .instructions h3 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .instructions ol {
+            color: #4a5568;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 5px;
+        }
+        
+        .security-notice {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 25px 0;
+            font-size: 14px;
+            color: #1565c0;
+        }
+        
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            color: #718096;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .footer-link {
+            color: #4285f4;
+            text-decoration: none;
+        }
+        
+        .small-text {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 15px;
+            line-height: 1.4;
+        }
+        
+        @media (max-width: 600px) {
+            .email-container {
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .header, .content, .footer {
+                padding: 20px;
+            }
+            
+            .otp-code {
+                font-size: 28px;
+                letter-spacing: 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>Verify Your Email</h1>
+            <p>Complete your PenginSign registration</p>
+        </div>
+        
+        <div class="content">
+            <div class="verification-icon">🔐</div>
+            
+            <div class="message">
+                Thank you for signing up with PenginSign!<br>
+                Please use the verification code below to complete your account setup.
+            </div>
+            
+            <div class="otp-container">
+                <div class="otp-label">Your Verification Code</div>
+                <div class="otp-code">${otp}</div>
+            </div>
+            
+            <div class="expiry-notice">
+                <strong>⏰ Important:</strong> This verification code will expire in <strong>10 minutes</strong>. 
+                Please complete verification promptly.
+            </div>
+            
+            <div class="instructions">
+                <h3>How to verify:</h3>
+                <ol>
+                    <li>Return to the PenginSign verification page</li>
+                    <li>Enter the 6-digit code shown above</li>
+                    <li>Click "Verify Email" to complete setup</li>
+                </ol>
+            </div>
+            
+            <div class="security-notice">
+                🛡️ <strong>Security Note:</strong> If you didn't create a PenginSign account, please ignore this email. 
+                Never share this verification code with anyone.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div>
+                This email was sent to <strong>${email}</strong> because you started the registration process for PenginSign.
+            </div>
+            
+            <div class="small-text">
+                Need help? Contact our support team at 
+                <a href="mailto:support@penginsign.com" class="footer-link">support@penginsign.com</a>
+                <br><br>
+                PenginSign - Secure Electronic Signature Platform<br>
+                Making document signing simple, secure, and legally binding.
             </div>
         </div>
     </div>

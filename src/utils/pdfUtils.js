@@ -521,14 +521,14 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       x: margin,
       y: yPos - 120,
       width: width - margin * 2,
-      height: 110,
+      height: 90,
       color: rgb(0.97, 0.97, 0.97),
       borderColor: lightGray,
       borderWidth: 1,
     });
 
     auditPage.drawText("Document Information", {
-      x: margin + 15,
+      x: margin,
       y: yPos,
       size: 14,
       font: helveticaBoldFont,

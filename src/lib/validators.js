@@ -30,4 +30,24 @@ const loginValidator = () => [
   body("password").isString().notEmpty().withMessage("Please Enter Password"),
 ];
 
-export { loginValidator, registerValidator, validateHandler };
+const verifyOTPValidator = () => [
+  body("email").isString().notEmpty().withMessage("Please Enter Email"),
+  body("otp")
+    .isString()
+    .notEmpty()
+    .withMessage("Please Enter OTP")
+    .isLength({ min: 6, max: 6 })
+    .withMessage("OTP must be 6 digits"),
+];
+
+const resendOTPValidator = () => [
+  body("email").isString().notEmpty().withMessage("Please Enter Email"),
+];
+
+export {
+  loginValidator,
+  registerValidator,
+  validateHandler,
+  verifyOTPValidator,
+  resendOTPValidator,
+};

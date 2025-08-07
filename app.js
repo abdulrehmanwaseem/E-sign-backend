@@ -1,10 +1,10 @@
+import { v2 as cloudinary } from "cloudinary";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { v2 as cloudinary } from "cloudinary";
 import passport from "./src/config/passport.js";
 import { corsOptions } from "./src/constants/options.js";
 import errorMiddleware from "./src/middlewares/errorMiddleware.js";
@@ -15,9 +15,8 @@ const __dirname = path.dirname(__filename);
 
 //* Routes:
 import { authRouter } from "./src/routes/auth.routes.js";
-import { oauthRouter } from "./src/routes/oauth.routes.js";
 import documentRouter from "./src/routes/document.routes.js";
-import emailRouter from "./src/routes/email.routes.js";
+import { oauthRouter } from "./src/routes/oauth.routes.js";
 
 //* Setup:
 export const app = express();
@@ -41,6 +40,5 @@ app.use(passport.initialize());
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/oauth", oauthRouter);
 app.use("/api/v1/documents", documentRouter);
-app.use("/api/v1/email", emailRouter);
 
 app.use(errorMiddleware);
