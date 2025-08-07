@@ -348,4 +348,271 @@ const createSigningInvitationTemplate = ({
   `;
 };
 
+/**
+ * Send completion notification email to document sender
+ * @param {Object} sender - The document sender
+ * @param {Object} document - The signed document
+ * @param {Object} recipient - The document recipient who signed
+ */
+export const sendCompletionNotification = async (
+  sender,
+  document,
+  recipient
+) => {
+  try {
+    const downloadUrl = `${process.env.CLIENT_URL}/dashboard/documents/${document.id}`;
+
+    // Use sender's name if available, otherwise use email
+    const senderName =
+      sender.firstName && sender.lastName
+        ? `${sender.firstName} ${sender.lastName}`.trim()
+        : sender.email;
+
+    // Create HTML email template
+    const htmlTemplate = createCompletionNotificationTemplate({
+      senderName,
+      recipientName: recipient.name,
+      recipientEmail: recipient.email,
+      documentName: document.name,
+      signedAt: document.signedAt,
+      downloadUrl,
+    });
+
+    const mailOptions = {
+      from: {
+        name: process.env.FROM_NAME || "PenginSign",
+        address: process.env.FROM_EMAIL || "93e6cb001@smtp-brevo.com",
+      },
+      to: sender.email,
+      subject: `${recipient.name} has signed "${document.name}"`,
+      html: htmlTemplate,
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log("Completion notification sent successfully:", result.messageId);
+    return result;
+  } catch (error) {
+    console.error("Error sending completion notification:", error);
+    throw new Error("Failed to send completion notification email");
+  }
+};
+
+/**
+ * Create HTML email template for completion notification
+ */
+const createCompletionNotificationTemplate = ({
+  senderName,
+  recipientName,
+  recipientEmail,
+  documentName,
+  signedAt,
+  downloadUrl,
+}) => {
+  const formattedDate = new Date(signedAt).toLocaleString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Completed</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .success-icon {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .success-icon::before {
+            content: "✅";
+            font-size: 48px;
+        }
+        
+        .message {
+            font-size: 18px;
+            color: #2d3748;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .details-section {
+            background-color: #f7fafc;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #4a5568;
+            flex: 1;
+        }
+        
+        .detail-value {
+            color: #2d3748;
+            flex: 2;
+            text-align: right;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            text-align: center;
+            margin: 20px auto;
+            display: block;
+            max-width: 300px;
+            transition: transform 0.2s ease;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .footer {
+            background-color: #f7fafc;
+            padding: 30px;
+            text-align: center;
+            color: #718096;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .footer-link {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .small-text {
+            font-size: 12px;
+            color: #a0aec0;
+            margin-top: 20px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>Document Signed Successfully!</h1>
+            <p>Your document has been completed</p>
+        </div>
+        
+        <div class="content">
+            <div class="success-icon"></div>
+            
+            <div class="message">
+                Great news! <strong>${recipientName}</strong> has successfully signed your document.
+            </div>
+            
+            <div class="details-section">
+                <div class="detail-row">
+                    <span class="detail-label">Document Name:</span>
+                    <span class="detail-value">${documentName}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Signed By:</span>
+                    <span class="detail-value">${recipientName} (${recipientEmail})</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Signed On:</span>
+                    <span class="detail-value">${formattedDate}</span>
+                </div>
+            </div>
+            
+            <a href="${downloadUrl}" class="cta-button">View & Download Document</a>
+            
+            <div class="message" style="font-size: 14px; margin-top: 30px;">
+                You can now download the completed document with all signatures embedded. The signed document is legally binding and ready for your records.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div>
+                This document was signed using PenginSign's secure electronic signature platform.
+            </div>
+            
+            <div class="small-text">
+                If you have any questions about this signed document, please contact our support team at 
+                <a href="mailto:support@penginsign.com" class="footer-link">support@penginsign.com</a>.
+                <br><br>
+                If you're having trouble with the link above, copy and paste the following URL into your browser: <br>
+                ${downloadUrl}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+  `;
+};
+
 export default transporter;

@@ -1,12 +1,18 @@
 import crypto from "crypto";
 import asyncHandler from "express-async-handler";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import fetch from "node-fetch";
 import { prisma } from "../config/dbConnection.js";
 import {
   deleteFileFromCloudinary,
   uploadFileToCloudinary,
 } from "../lib/cloudinary.js";
 import { ApiError } from "../utils/ApiError.js";
-import { sendSigningInvitation } from "../lib/emailService.js";
+import {
+  sendSigningInvitation,
+  sendCompletionNotification,
+} from "../lib/emailService.js";
+import { createSignedPDF } from "../utils/pdfUtils.js";
 
 // @desc    Create document and send for signing (Combined flow)
 // @route   POST /api/documents/send-for-signing
@@ -363,18 +369,28 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
   const { accessToken } = req.params;
   const { signatureData } = req.body;
 
+  console.log("=== Starting signature submission ===");
+  console.log("Access token:", accessToken);
+  console.log("Signature data count:", signatureData?.length);
+
   try {
     // Find document by its own access token
     const document = await prisma.document.findUnique({
       where: { accessToken },
       include: {
         recipient: true,
+        fields: true,
+        createdBy: true, // Include sender information for email notification
       },
     });
 
     if (!document) {
       throw new ApiError("Document not found or access denied", 404);
     }
+
+    console.log("Document found:", document.id, document.name);
+    console.log("Document fields count:", document.fields.length);
+    console.log("Document publicId:", document.publicId);
 
     // Check if already signed
     if (document.signedAt) {
@@ -400,6 +416,19 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
 
     await Promise.all(updatePromises);
 
+    // Create signed PDF with embedded signatures
+    let signedPdfUrl = null;
+    console.log("=== Starting PDF creation ===");
+    try {
+      signedPdfUrl = await createSignedPDF(document, signatureData);
+      console.log("=== PDF creation successful ===");
+      console.log("Signed PDF URL:", signedPdfUrl);
+    } catch (pdfError) {
+      console.error("=== PDF creation failed ===");
+      console.error("PDF creation error:", pdfError);
+      // Continue without signed PDF if creation fails
+    }
+
     // Update document with signing info and status
     await Promise.all([
       prisma.document.update({
@@ -407,34 +436,165 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
         data: {
           status: "SIGNED",
           signedAt: new Date(),
+          signedPdfUrl: signedPdfUrl, // Store the signed PDF URL
         },
       }),
     ]);
 
-    // Log activity
-    await prisma.documentActivity.create({
-      data: {
-        documentId: document.id,
-        recipientId: document.recipientId,
-        action: "SIGNED",
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-        details: {
-          fieldsCount: signatureData.length,
+    // Log activities for signing process
+    await Promise.all([
+      // Log SIGNED activity
+      prisma.documentActivity.create({
+        data: {
+          documentId: document.id,
+          recipientId: document.recipientId,
+          action: "SIGNED",
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent"),
+          details: {
+            fieldsCount: signatureData.length,
+            signedPdfCreated: !!signedPdfUrl,
+          },
         },
-      },
-    });
+      }),
+      // Log COMPLETED activity (signing process completed)
+      prisma.documentActivity.create({
+        data: {
+          documentId: document.id,
+          recipientId: document.recipientId,
+          action: "COMPLETED",
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent"),
+          details: {
+            action: "signing_process_completed",
+            signedPdfUrl: signedPdfUrl,
+            completedBy: document.recipient.email,
+          },
+        },
+      }),
+    ]);
+
+    // Send completion notification to document sender
+    try {
+      await sendCompletionNotification(
+        document.createdBy,
+        {
+          ...document,
+          signedAt: new Date(),
+        },
+        document.recipient
+      );
+    } catch (emailError) {
+      console.error("Failed to send completion notification:", emailError);
+      // Don't fail the signing process if email fails
+    }
 
     res.status(200).json({
       success: true,
       message: "Document signed successfully",
       data: {
         signedAt: new Date(),
+        signedPdfUrl: signedPdfUrl,
       },
     });
   } catch (error) {
     console.error("Submit signature error:", error);
     throw new ApiError("Failed to submit signature", 500);
+  }
+});
+
+// @desc    Download signed PDF
+// @route   GET /api/documents/:id/download-signed
+// @access  Private
+export const downloadSignedPDF = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const createdById = req.user.id;
+
+  try {
+    const document = await prisma.document.findFirst({
+      where: {
+        id,
+        createdById,
+      },
+      select: {
+        id: true,
+        name: true,
+        fileName: true,
+        extension: true, // Include extension field
+        status: true,
+        signedAt: true,
+        signedPdfUrl: true,
+        recipient: {
+          select: {
+            name: true,
+            email: true,
+            signedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!document) {
+      throw new ApiError("Document not found", 404);
+    }
+
+    if (document.status !== "SIGNED" || !document.signedPdfUrl) {
+      throw new ApiError("Signed PDF not available", 400);
+    }
+
+    // Log activity
+    await prisma.documentActivity.create({
+      data: {
+        documentId: document.id,
+        action: "DOWNLOADED", // Using DOWNLOADED to indicate PDF download
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+        details: {
+          action: "signed_pdf_downloaded",
+          downloadedBy: req.user.email,
+        },
+      },
+    });
+
+    // Alternative approach: Stream the PDF through our server with proper headers
+    // This ensures proper filename and content-type
+    try {
+      const pdfResponse = await fetch(document.signedPdfUrl);
+      if (!pdfResponse.ok) {
+        throw new Error("Failed to fetch signed PDF from Cloudinary");
+      }
+
+      const pdfBuffer = await pdfResponse.arrayBuffer();
+      const fileName = `signed_${document.fileName.replace(
+        /\.[^/.]+$/,
+        ""
+      )}.pdf`; // Signed docs are always PDF
+
+      res.setHeader("Content-Type", "application/pdf"); // Signed documents are always PDF
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${fileName}"`
+      );
+      res.setHeader("Content-Length", pdfBuffer.byteLength);
+
+      return res.send(Buffer.from(pdfBuffer));
+    } catch (fetchError) {
+      console.error("Error fetching PDF from Cloudinary:", fetchError);
+      // Fallback to returning URL
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        signedPdfUrl: document.signedPdfUrl,
+        fileName: `signed_${document.fileName.replace(/\.[^/.]+$/, "")}.pdf`, // Signed documents are always PDF
+        signedAt: document.signedAt,
+        recipientName: document.recipient.name,
+      },
+    });
+  } catch (error) {
+    console.error("Download signed PDF error:", error);
+    throw new ApiError("Failed to get signed PDF", 500);
   }
 });
 

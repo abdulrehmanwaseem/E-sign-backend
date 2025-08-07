@@ -2,6 +2,7 @@ import express from "express";
 import {
   createAndSendDocument,
   deleteDocument,
+  downloadSignedPDF,
   getDocumentAuditTrail,
   getDocumentById,
   getDocumentForSigning,
@@ -26,6 +27,7 @@ router.post(
 );
 router.get("/", isAuthenticated, getDocuments);
 router.get("/:id", isAuthenticated, getDocumentById);
+router.get("/:id/download-signed", isAuthenticated, downloadSignedPDF);
 router.delete("/:id", isAuthenticated, deleteDocument);
 router.get("/:id/audit-trail", isAuthenticated, getDocumentAuditTrail);
 

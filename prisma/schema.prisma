@@ -36,6 +36,7 @@ model Document {
   accessToken        String            @unique @default(cuid()) // Unique access token per document
   status             DocumentStatus    @default(PENDING)
   signedAt           DateTime?         // Track signing at document level
+  signedPdfUrl       String?           // URL of the signed PDF with embedded signatures
   createdById        String
   recipientId        String            // Removed @unique to allow multiple docs per recipient
 
@@ -128,6 +129,7 @@ enum FieldType {
   TITLE
   ADDRESS
   INITIALS
+  TEXT
 }
 
 enum ActivityAction {
@@ -137,4 +139,5 @@ enum ActivityAction {
   SIGNED
   COMPLETED
   CANCELLED
+  DOWNLOADED
 }
