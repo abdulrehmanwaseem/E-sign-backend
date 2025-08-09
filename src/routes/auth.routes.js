@@ -6,6 +6,9 @@ import {
   signup,
   verifyOTP,
   resendOTP,
+  sendPhoneVerification,
+  verifyPhoneOTP,
+  resendPhoneOTP,
 } from "../controllers/auth.controller.js";
 import {
   loginValidator,
@@ -13,6 +16,8 @@ import {
   validateHandler,
   verifyOTPValidator,
   resendOTPValidator,
+  sendPhoneVerificationValidator,
+  verifyPhoneOTPValidator,
 } from "../lib/validators.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
 
@@ -27,6 +32,23 @@ authRouter
   .route("/resend-otp")
   .post(resendOTPValidator(), validateHandler, resendOTP);
 authRouter.route("/logout").post(logout);
+
+// Phone verification routes (protected - requires email verification first)
+authRouter.post(
+  "/send-phone-verification",
+  isAuthenticated,
+  sendPhoneVerificationValidator(),
+  validateHandler,
+  sendPhoneVerification
+);
+authRouter.post(
+  "/verify-phone-otp",
+  isAuthenticated,
+  verifyPhoneOTPValidator(),
+  validateHandler,
+  verifyPhoneOTP
+);
+authRouter.post("/resend-phone-otp", isAuthenticated, resendPhoneOTP);
 
 // Protected Routes:
 authRouter.get("/me", isAuthenticated, getMyProfile);

@@ -17,8 +17,12 @@ model User {
   provider      String?  // "google", "apple", "credentials"
   providerId    String?  // OAuth provider's user ID
   isEmailVerified Boolean @default(false)
+  phone         String?
+  isPhoneVerified Boolean @default(false)
   otp           String?
   otpExpires    DateTime?
+  phoneOtp      String?
+  phoneOtpExpires DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

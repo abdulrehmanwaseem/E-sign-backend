@@ -5,6 +5,12 @@ import { ApiError } from "../utils/ApiError.js";
 import { USER_TOKEN, cookieOptions } from "../constants/options.js";
 import { generateJwtToken } from "../utils/jwtUtils.js";
 import { sendOTPEmail, generateOTP } from "../lib/emailService.js";
+import {
+  sendPhoneOTP,
+  generatePhoneOTP,
+  formatPhoneNumber,
+  validatePhoneNumber,
+} from "../lib/smsService.js";
 
 const signup = TryCatch(async (req, res, next) => {
   const { email, password } = req.body;
@@ -196,7 +202,21 @@ const resendOTP = TryCatch(async (req, res, next) => {
 });
 
 const getMyProfile = TryCatch(async (req, res, next) => {
-  const user = req.user;
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+      provider: true,
+      phone: true,
+      isEmailVerified: true,
+      isPhoneVerified: true,
+    },
+  });
+
   res.json({
     status: "success",
     user,
@@ -209,4 +229,182 @@ const logout = TryCatch(async (req, res, next) => {
   res.status(204).end();
 });
 
-export { signup, login, logout, getMyProfile, verifyOTP, resendOTP };
+// Phone verification functions
+const sendPhoneVerification = TryCatch(async (req, res, next) => {
+  const { phone } = req.body;
+  const userId = req.user.id;
+
+  if (!phone) {
+    return next(new ApiError("Phone number is required", 400));
+  }
+
+  if (!validatePhoneNumber(phone)) {
+    return next(new ApiError("Please provide a valid phone number", 400));
+  }
+
+  const formattedPhone = formatPhoneNumber(phone);
+
+  // Check if phone number is already verified by another user
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      phone: formattedPhone,
+      isPhoneVerified: true,
+      id: { not: userId },
+    },
+  });
+
+  if (existingUser) {
+    return next(
+      new ApiError("This phone number is already verified by another user", 400)
+    );
+  }
+
+  const phoneOtp = generatePhoneOTP();
+  const phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  // Update user with phone and OTP
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      phone: formattedPhone,
+      phoneOtp,
+      phoneOtpExpires,
+      isPhoneVerified: false,
+    },
+  });
+
+  // Send SMS OTP
+  try {
+    await sendPhoneOTP(formattedPhone, phoneOtp);
+  } catch (error) {
+    console.error("Failed to send SMS OTP:", error);
+    return next(new ApiError("Failed to send SMS OTP. Please try again.", 500));
+  }
+
+  res.status(200).json({
+    status: "success",
+    message: "Phone verification code sent successfully",
+  });
+});
+
+const verifyPhoneOTP = TryCatch(async (req, res, next) => {
+  const { otp } = req.body;
+  const userId = req.user.id;
+
+  if (!otp) {
+    return next(new ApiError("OTP is required", 400));
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    return next(new ApiError("User not found", 400));
+  }
+
+  if (!user.phone) {
+    return next(
+      new ApiError(
+        "No phone number found. Please send verification code first.",
+        400
+      )
+    );
+  }
+
+  if (user.isPhoneVerified) {
+    return next(new ApiError("Phone number already verified", 400));
+  }
+
+  if (!user.phoneOtp || user.phoneOtp !== otp) {
+    return next(new ApiError("Invalid OTP", 400));
+  }
+
+  if (!user.phoneOtpExpires || new Date() > user.phoneOtpExpires) {
+    return next(new ApiError("OTP expired", 400));
+  }
+
+  // Verify the phone and clear OTP
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      isPhoneVerified: true,
+      phoneOtp: null,
+      phoneOtpExpires: null,
+    },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+      provider: true,
+      phone: true,
+      isPhoneVerified: true,
+    },
+  });
+
+  res.status(200).json({
+    status: "success",
+    user: updatedUser,
+    message: "Phone number verified successfully",
+  });
+});
+
+const resendPhoneOTP = TryCatch(async (req, res, next) => {
+  const userId = req.user.id;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    return next(new ApiError("User not found", 400));
+  }
+
+  if (!user.phone) {
+    return next(
+      new ApiError(
+        "No phone number found. Please send verification code first.",
+        400
+      )
+    );
+  }
+
+  if (user.isPhoneVerified) {
+    return next(new ApiError("Phone number already verified", 400));
+  }
+
+  const phoneOtp = generatePhoneOTP();
+  const phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { phoneOtp, phoneOtpExpires },
+  });
+
+  // Send SMS OTP
+  try {
+    await sendPhoneOTP(user.phone, phoneOtp);
+  } catch (error) {
+    console.error("Failed to resend SMS OTP:", error);
+    return next(new ApiError("Failed to send SMS OTP. Please try again.", 500));
+  }
+
+  res.status(200).json({
+    status: "success",
+    message: "Phone verification code sent successfully",
+  });
+});
+
+export {
+  signup,
+  login,
+  logout,
+  getMyProfile,
+  verifyOTP,
+  resendOTP,
+  sendPhoneVerification,
+  verifyPhoneOTP,
+  resendPhoneOTP,
+};
