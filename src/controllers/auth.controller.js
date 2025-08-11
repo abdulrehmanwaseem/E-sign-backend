@@ -1,16 +1,24 @@
+// Telnyx webhook handler (basic example)
+export const telnyxWebhookHandler = (req, res) => {
+  // Telnyx sends events as JSON in req.body
+  const event = req.body;
+  console.log("Received Telnyx webhook event:", event);
+  // You can add logic here to handle inbound SMS, delivery status, etc.
+  res.status(200).json({ received: true });
+};
 import bcrypt from "bcryptjs";
 import TryCatch from "express-async-handler";
 import { prisma } from "../config/dbConnection.js";
 import { ApiError } from "../utils/ApiError.js";
 import { USER_TOKEN, cookieOptions } from "../constants/options.js";
 import { generateJwtToken } from "../utils/jwtUtils.js";
-import { sendOTPEmail, generateOTP } from "../lib/emailService.js";
+import { sendOTPEmail } from "../lib/emailService.js";
 import {
   sendPhoneOTP,
-  generatePhoneOTP,
   formatPhoneNumber,
   validatePhoneNumber,
 } from "../lib/smsService.js";
+import { generateOTP } from "../utils/helpers.js";
 
 const signup = TryCatch(async (req, res, next) => {
   const { email, password } = req.body;
@@ -114,7 +122,7 @@ const login = TryCatch(async (req, res, next) => {
   });
 });
 
-const verifyOTP = TryCatch(async (req, res, next) => {
+const verifyEmail = TryCatch(async (req, res, next) => {
   const { email, otp } = req.body;
 
   const user = await prisma.user.findUnique({
@@ -259,7 +267,7 @@ const sendPhoneVerification = TryCatch(async (req, res, next) => {
     );
   }
 
-  const phoneOtp = generatePhoneOTP();
+  const phoneOtp = generateOTP();
   const phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   // Update user with phone and OTP
@@ -375,7 +383,7 @@ const resendPhoneOTP = TryCatch(async (req, res, next) => {
     return next(new ApiError("Phone number already verified", 400));
   }
 
-  const phoneOtp = generatePhoneOTP();
+  const phoneOtp = generateOTP();
   const phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   await prisma.user.update({
@@ -402,7 +410,7 @@ export {
   login,
   logout,
   getMyProfile,
-  verifyOTP,
+  verifyEmail,
   resendOTP,
   sendPhoneVerification,
   verifyPhoneOTP,

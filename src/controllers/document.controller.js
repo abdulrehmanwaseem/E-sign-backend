@@ -14,6 +14,128 @@ import {
 } from "../lib/emailService.js";
 import { createSignedPDF } from "../utils/pdfUtils.js";
 
+// @desc    Get user's document library
+// @route   GET /api/documents/library
+// @access  Private
+export const getUserLibrary = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+
+  const documents = await prisma.document.findMany({
+    where: {
+      createdById: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      fileName: true,
+      fileType: true,
+      filePath: true,
+      extension: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      recipient: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Documents retrieved successfully",
+    data: documents,
+  });
+});
+
+// @desc    Check if file exists by name for current user
+// @route   GET /api/documents/check-exists?fileName=filename.pdf
+// @access  Private
+export const checkFileExists = asyncHandler(async (req, res) => {
+  const { fileName } = req.query;
+  const userId = req.user.id;
+
+  if (!fileName) {
+    throw new ApiError("File name is required", 400);
+  }
+
+  const existingFile = await prisma.document.findFirst({
+    where: {
+      fileName: fileName,
+      createdById: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      fileName: true,
+      filePath: true,
+      fileType: true,
+      extension: true,
+    },
+  });
+
+  if (existingFile) {
+    return res.status(200).json({
+      success: true,
+      exists: true,
+      data: existingFile,
+      message: `File "${fileName}" already exists in your library`,
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    exists: false,
+    message: "File does not exist",
+  });
+});
+
+// @desc    Delete document from library
+// @route   DELETE /api/documents/library/:id
+// @access  Private
+export const deleteDocumentFromLibrary = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  const document = await prisma.document.findFirst({
+    where: {
+      id: id,
+      createdById: userId,
+    },
+  });
+
+  if (!document) {
+    throw new ApiError("Document not found", 404);
+  }
+
+  // Delete file from Cloudinary
+  try {
+    if (document.publicId) {
+      await deleteFileFromCloudinary(document.publicId);
+    }
+  } catch (error) {
+    console.error("Failed to delete file from Cloudinary:", error);
+    // Continue with database deletion even if Cloudinary deletion fails
+  }
+
+  // Delete document from database
+  await prisma.document.delete({
+    where: {
+      id: id,
+    },
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Document deleted successfully",
+  });
+});
+
 // @desc    Create document and send for signing (Combined flow)
 // @route   POST /api/documents/send-for-signing
 // @access  Private
@@ -35,6 +157,21 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
   if (!name || !fileType) {
     throw new ApiError("Document name and file type are required", 400);
   }
+
+  // // Check if file already exists for this user
+  // const existingFile = await prisma.document.findFirst({
+  //   where: {
+  //     fileName: req.file.originalname,
+  //     createdById: createdById,
+  //   },
+  // });
+
+  // if (existingFile) {
+  //   throw new ApiError(
+  //     `File "${req.file.originalname}" already exists in your library. Please use it from your library instead.`,
+  //     409
+  //   );
+  // }
 
   try {
     // Step 1: Upload file to Cloudinary
@@ -184,21 +321,16 @@ export const getDocuments = asyncHandler(async (req, res) => {
     const [documents, total] = await Promise.all([
       prisma.document.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          createdAt: true,
+          signedPdfUrl: true,
           recipient: {
             select: {
-              id: true,
               name: true,
               email: true,
-              signedAt: true,
-              viewedAt: true,
-            },
-          },
-          fields: {
-            select: {
-              id: true,
-              fieldType: true,
-              fieldValue: true,
             },
           },
           _count: {
@@ -246,22 +378,23 @@ export const getDocumentById = asyncHandler(async (req, res) => {
         id,
         createdById,
       },
-      include: {
-        recipient: true,
-        fields: {
-          orderBy: [{ pageNumber: "asc" }, { yPosition: "asc" }],
-        },
-        activities: {
-          orderBy: { createdAt: "desc" },
-          take: 10,
-        },
-        createdBy: {
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        createdAt: true,
+        signedAt: true,
+        signedPdfUrl: true,
+        filePath: true,
+        fileType: true,
+        recipient: {
           select: {
-            id: true,
+            name: true,
             email: true,
-            firstName: true,
-            lastName: true,
           },
+        },
+        fields: {
+          select: { id: true }, // only need length in frontend
         },
       },
     });
@@ -270,14 +403,12 @@ export const getDocumentById = asyncHandler(async (req, res) => {
       throw new ApiError("Document not found", 404);
     }
 
-    // File URL is already complete for Cloudinary uploads
-    const fileUrl = document.filePath;
-
+    // Map DB fieldPath → fileUrl for frontend
     res.status(200).json({
       success: true,
       data: {
         ...document,
-        fileUrl,
+        fileUrl: document.filePath,
       },
     });
   } catch (error) {
@@ -503,101 +634,6 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
   }
 });
 
-// @desc    Download signed PDF
-// @route   GET /api/documents/:id/download-signed
-// @access  Private
-export const downloadSignedPDF = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const createdById = req.user.id;
-
-  try {
-    const document = await prisma.document.findFirst({
-      where: {
-        id,
-        createdById,
-      },
-      select: {
-        id: true,
-        name: true,
-        fileName: true,
-        extension: true, // Include extension field
-        status: true,
-        signedAt: true,
-        signedPdfUrl: true,
-        recipient: {
-          select: {
-            name: true,
-            email: true,
-            signedAt: true,
-          },
-        },
-      },
-    });
-
-    if (!document) {
-      throw new ApiError("Document not found", 404);
-    }
-
-    if (document.status !== "SIGNED" || !document.signedPdfUrl) {
-      throw new ApiError("Signed PDF not available", 400);
-    }
-
-    // Log activity
-    await prisma.documentActivity.create({
-      data: {
-        documentId: document.id,
-        action: "DOWNLOADED", // Using DOWNLOADED to indicate PDF download
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-        details: {
-          action: "signed_pdf_downloaded",
-          downloadedBy: req.user.email,
-        },
-      },
-    });
-
-    // Alternative approach: Stream the PDF through our server with proper headers
-    // This ensures proper filename and content-type
-    try {
-      const pdfResponse = await fetch(document.signedPdfUrl);
-      if (!pdfResponse.ok) {
-        throw new Error("Failed to fetch signed PDF from Cloudinary");
-      }
-
-      const pdfBuffer = await pdfResponse.arrayBuffer();
-      const fileName = `signed_${document.fileName.replace(
-        /\.[^/.]+$/,
-        ""
-      )}.pdf`; // Signed docs are always PDF
-
-      res.setHeader("Content-Type", "application/pdf"); // Signed documents are always PDF
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${fileName}"`
-      );
-      res.setHeader("Content-Length", pdfBuffer.byteLength);
-
-      return res.send(Buffer.from(pdfBuffer));
-    } catch (fetchError) {
-      console.error("Error fetching PDF from Cloudinary:", fetchError);
-      // Fallback to returning URL
-    }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        signedPdfUrl: document.signedPdfUrl,
-        fileName: `signed_${document.fileName.replace(/\.[^/.]+$/, "")}.pdf`, // Signed documents are always PDF
-        signedAt: document.signedAt,
-        recipientName: document.recipient.name,
-      },
-    });
-  } catch (error) {
-    console.error("Download signed PDF error:", error);
-    throw new ApiError("Failed to get signed PDF", 500);
-  }
-});
-
 // @desc    Get document audit trail
 // @route   GET /api/documents/:id/audit-trail
 // @access  Private
@@ -679,5 +715,66 @@ export const deleteDocument = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error("Delete document error:", error);
     throw new ApiError("Failed to delete document", 500);
+  }
+});
+
+// @desc    Cancel document
+// @route   PATCH /api/documents/:id/cancel
+// @access  Private
+export const cancelDocument = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const createdById = req.user.id;
+  console.log("TESTTT", req.params);
+  try {
+    // Find the document first to ensure it belongs to user and can be cancelled
+    const document = await prisma.document.findFirst({
+      where: {
+        id,
+        createdById, // Ensure user can only cancel their own documents
+      },
+    });
+
+    if (!document) {
+      throw new ApiError("Document not found or access denied", 404);
+    }
+
+    // Check if document can be cancelled (only PENDING documents can be cancelled)
+    if (document.status !== "PENDING") {
+      throw new ApiError(
+        `Cannot cancel document with status: ${document.status}`,
+        400
+      );
+    }
+
+    // Update document status to CANCELLED
+    const updatedDocument = await prisma.document.update({
+      where: { id },
+      data: {
+        status: "CANCELLED",
+      },
+    });
+
+    // Log activity for cancellation
+    await prisma.documentActivity.create({
+      data: {
+        documentId: document.id,
+        action: "CANCELLED",
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+        details: {
+          cancelledBy: req.user.email,
+          reason: "Document cancelled by sender",
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Document cancelled successfully",
+      data: updatedDocument,
+    });
+  } catch (error) {
+    console.error("Cancel document error:", error);
+    throw new ApiError("Failed to cancel document", 400);
   }
 });

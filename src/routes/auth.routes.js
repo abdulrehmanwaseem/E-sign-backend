@@ -4,17 +4,19 @@ import {
   login,
   logout,
   signup,
-  verifyOTP,
+  verifyEmail,
   resendOTP,
   sendPhoneVerification,
   verifyPhoneOTP,
   resendPhoneOTP,
+  telnyxWebhookHandler,
 } from "../controllers/auth.controller.js";
+// Telnyx webhook endpoint (public, no auth)
 import {
   loginValidator,
   registerValidator,
   validateHandler,
-  verifyOTPValidator,
+  verifyEmailValidator,
   resendOTPValidator,
   sendPhoneVerificationValidator,
   verifyPhoneOTPValidator,
@@ -23,11 +25,14 @@ import isAuthenticated from "../middlewares/isAuthenticated.js";
 
 export const authRouter = Router();
 
+authRouter.post("/webhook/telnyx", telnyxWebhookHandler);
+authRouter.post("/webhook/telnyx/error", telnyxWebhookHandler);
+
 authRouter.route("/signup").post(registerValidator(), validateHandler, signup);
 authRouter.route("/login").post(loginValidator(), validateHandler, login);
 authRouter
-  .route("/verify-otp")
-  .post(verifyOTPValidator(), validateHandler, verifyOTP);
+  .route("/verify-email")
+  .post(verifyEmailValidator(), validateHandler, verifyEmail);
 authRouter
   .route("/resend-otp")
   .post(resendOTPValidator(), validateHandler, resendOTP);

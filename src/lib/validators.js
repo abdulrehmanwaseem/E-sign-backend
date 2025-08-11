@@ -30,7 +30,7 @@ const loginValidator = () => [
   body("password").isString().notEmpty().withMessage("Please Enter Password"),
 ];
 
-const verifyOTPValidator = () => [
+const verifyEmailValidator = () => [
   body("email").isString().notEmpty().withMessage("Please Enter Email"),
   body("otp")
     .isString()
@@ -74,7 +74,7 @@ export {
   loginValidator,
   registerValidator,
   validateHandler,
-  verifyOTPValidator,
+  verifyEmailValidator,
   resendOTPValidator,
   sendPhoneVerificationValidator,
   verifyPhoneOTPValidator,

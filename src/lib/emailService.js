@@ -32,8 +32,8 @@ export const sendSigningInvitation = async (recipient, document, sender) => {
 
     // Use sender's name if available, otherwise use email
     const senderName =
-      sender.firstName && sender.lastName
-        ? `${sender.firstName} ${sender.lastName}`.trim()
+      sender?.firstName || sender?.lastName
+        ? `${sender?.firstName} ${sender?.lastName}`.trim()
         : sender.email;
 
     // Create HTML email template
@@ -288,7 +288,7 @@ const createSigningInvitationTemplate = ({
             
             <div class="document-details">
                 <div class="detail-row">
-                    <span class="detail-label">Sent by: </span>
+                    <span class="detail-label">Sent by:&nbsp;</span>
                     <span class="detail-value">${senderName}</span>
                 </div>
                 <div class="detail-row">
@@ -296,7 +296,7 @@ const createSigningInvitationTemplate = ({
                     <a href="mailto:${senderEmail}" class="sender-email">${senderEmail}</a>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Document: </span>
+                    <span class="detail-label">Document:&nbsp;</span>
                     <span class="detail-value">${documentName}</span>
                 </div>
             </div>
@@ -345,7 +345,7 @@ const createSigningInvitationTemplate = ({
     </div>
 </body>
 </html>
-  `;
+`;
 };
 
 /**
@@ -364,8 +364,8 @@ export const sendCompletionNotification = async (
 
     // Use sender's name if available, otherwise use email
     const senderName =
-      sender.firstName && sender.lastName
-        ? `${sender.firstName} ${sender.lastName}`.trim()
+      sender.firstName || sender.lastName
+        ? `${sender?.firstName} ${sender?.lastName}`.trim()
         : sender.email;
 
     // Create HTML email template
@@ -429,9 +429,6 @@ export const sendOTPEmail = async (email, otp) => {
  * Generate a 6-digit OTP
  * @returns {string} 6-digit OTP
  */
-export const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
 
 /**
  * Create HTML email template for completion notification
@@ -467,188 +464,225 @@ const createCompletionNotificationTemplate = ({
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
             color: #333;
             background-color: #f5f5f5;
         }
-        
+
         .email-container {
             max-width: 600px;
             margin: 0 auto;
             background-color: #ffffff;
             border-radius: 8px;
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
-        
+
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px 30px;
-            text-align: center;
-            color: white;
+            background-color: #ffffff;
+            padding: 30px 40px 20px;
+            border-bottom: 1px solid #e5e5e5;
         }
-        
-        .header h1 {
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 10px;
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin-bottom: 0;
         }
-        
-        .header p {
-            font-size: 16px;
-            opacity: 0.9;
+
+        .main-content {
+            padding: 40px;
         }
-        
-        .content {
-            padding: 40px 30px;
-        }
-        
+
         .success-icon {
             text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .success-icon::before {
-            content: "✅";
             font-size: 48px;
+            margin-bottom: 20px;
         }
-        
-        .message {
-            font-size: 18px;
-            color: #2d3748;
-            margin-bottom: 30px;
+
+        .greeting {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 20px;
             text-align: center;
         }
-        
-        .details-section {
-            background-color: #f7fafc;
+
+        .message {
+            font-size: 16px;
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        .cta-button {
+            display: block;
+            width: 280px;
+            margin: 0 auto 40px;
+            padding: 16px 24px;
+            background-color: #4285f4;
+            color: #ffffff !important;
+            text-decoration: none;
             border-radius: 8px;
-            padding: 25px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .cta-button:hover {
+            background-color: #3367d6;
+        }
+
+        .document-details {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 24px;
             margin-bottom: 30px;
         }
-        
+
         .detail-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 12px 0;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e5e5e5;
         }
-        
+
         .detail-row:last-child {
             border-bottom: none;
         }
-        
+
         .detail-label {
             font-weight: 600;
-            color: #4a5568;
-            flex: 1;
-        }
-        
-        .detail-value {
-            color: #2d3748;
-            flex: 2;
-            text-align: right;
-        }
-        
-        .cta-button {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            padding: 15px 30px;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 16px;
-            text-align: center;
-            margin: 20px auto;
-            display: block;
-            max-width: 300px;
-            transition: transform 0.2s ease;
-        }
-        
-        .cta-button:hover {
-            transform: translateY(-2px);
-        }
-        
-        .footer {
-            background-color: #f7fafc;
-            padding: 30px;
-            text-align: center;
-            color: #718096;
+            color: #1a1a1a;
             font-size: 14px;
-            line-height: 1.5;
         }
-        
+
+        .detail-value {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px 40px;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        .footer-title {
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .footer-text {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
         .footer-link {
-            color: #667eea;
+            color: #4285f4;
             text-decoration: none;
         }
-        
+
+        .footer-link:hover {
+            text-decoration: underline;
+        }
+
         .small-text {
             font-size: 12px;
-            color: #a0aec0;
-            margin-top: 20px;
+            color: #999;
             line-height: 1.4;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .email-container {
+                margin: 0;
+                border-radius: 0;
+            }
+
+            .header, .main-content, .footer {
+                padding: 20px;
+            }
+
+            .cta-button {
+                width: 100%;
+            }
+
+            .detail-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="email-container">
         <div class="header">
-            <h1>Document Signed Successfully!</h1>
-            <p>Your document has been completed</p>
+            <h1 class="logo">PenginSign</h1>
         </div>
-        
-        <div class="content">
-            <div class="success-icon"></div>
-            
-            <div class="message">
+
+        <div class="main-content">
+            <div class="success-icon">✅</div>
+
+            <h2 class="greeting">Document Signed Successfully!</h2>
+
+            <p class="message">
                 Great news! <strong>${recipientName}</strong> has successfully signed your document.
-            </div>
-            
-            <div class="details-section">
+            </p>
+
+            <a href="${downloadUrl}" class="cta-button">View & Download Document</a>
+
+            <div class="document-details">
                 <div class="detail-row">
-                    <span class="detail-label">Document Name:</span>
+                    <span class="detail-label">Document Name:&nbsp;</span>
                     <span class="detail-value">${documentName}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Signed By:</span>
+                    <span class="detail-label">Signed By:&nbsp;</span>
                     <span class="detail-value">${recipientName} (${recipientEmail})</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Signed On:</span>
+                    <span class="detail-label">Signed On:&nbsp;</span>
                     <span class="detail-value">${formattedDate}</span>
                 </div>
             </div>
-            
-            <a href="${downloadUrl}" class="cta-button">View & Download Document</a>
-            
-            <div class="message" style="font-size: 14px; margin-top: 30px;">
+
+            <p class="message" style="font-size: 14px;">
                 You can now download the completed document with all signatures embedded. The signed document is legally binding and ready for your records.
-            </div>
+            </p>
         </div>
-        
+
         <div class="footer">
-            <div>
+            <div class="footer-title">About PenginSign</div>
+            <div class="footer-text">
                 This document was signed using PenginSign's secure electronic signature platform.
             </div>
-            
-            <div class="small-text">
+
+            <div class="footer-text">
                 If you have any questions about this signed document, please contact our support team at 
                 <a href="mailto:support@penginsign.com" class="footer-link">support@penginsign.com</a>.
-                <br><br>
-                If you're having trouble with the link above, copy and paste the following URL into your browser: <br>
+            </div>
+
+            <div class="small-text">
+                If you're having trouble with the button above, copy and paste the following URL into your browser: <br>
                 ${downloadUrl}
             </div>
         </div>
     </div>
 </body>
 </html>
-  `;
+`;
 };
 
 /**

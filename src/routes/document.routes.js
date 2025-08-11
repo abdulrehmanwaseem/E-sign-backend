@@ -2,12 +2,15 @@ import express from "express";
 import {
   createAndSendDocument,
   deleteDocument,
-  downloadSignedPDF,
   getDocumentAuditTrail,
   getDocumentById,
   getDocumentForSigning,
   getDocuments,
   submitSignature,
+  getUserLibrary,
+  checkFileExists,
+  deleteDocumentFromLibrary,
+  cancelDocument,
 } from "../controllers/document.controller.js";
 
 import isAuthenticated from "../middlewares/isAuthenticated.js";
@@ -19,6 +22,11 @@ const router = express.Router();
 router.get("/signing/:accessToken", getDocumentForSigning);
 router.post("/signing/:accessToken/submit", submitSignature);
 
+// Library routes
+router.get("/library", isAuthenticated, getUserLibrary);
+router.get("/check-exists", isAuthenticated, checkFileExists);
+router.delete("/library/:id", isAuthenticated, deleteDocumentFromLibrary);
+
 router.post(
   "/send-for-signing",
   isAuthenticated,
@@ -27,7 +35,7 @@ router.post(
 );
 router.get("/", isAuthenticated, getDocuments);
 router.get("/:id", isAuthenticated, getDocumentById);
-router.get("/:id/download-signed", isAuthenticated, downloadSignedPDF);
+router.patch("/:id/cancel", isAuthenticated, cancelDocument);
 router.delete("/:id", isAuthenticated, deleteDocument);
 router.get("/:id/audit-trail", isAuthenticated, getDocumentAuditTrail);
 

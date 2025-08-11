@@ -8,11 +8,6 @@ if (!TELNYX_API_KEY) {
   console.warn("TELNYX_API_KEY is not configured");
 }
 
-// Generate 6-digit OTP
-export const generatePhoneOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
 // Send SMS OTP using Telnyx
 export const sendPhoneOTP = async (phoneNumber, otp) => {
   if (!TELNYX_API_KEY) {

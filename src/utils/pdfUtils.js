@@ -451,7 +451,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     // Add the actual audit page with simplified approach
     console.log("📋 Adding actual audit trail page...");
-    const auditPageHeight = Math.max(originalHeight, 800);
+    const auditPageHeight = Math.max(originalHeight, 850);
     const auditPage = pdfDoc.addPage([originalWidth, auditPageHeight]);
     const { width, height } = auditPage.getSize();
     console.log("📋 Added audit page, dimensions:", width, "x", height);
@@ -463,17 +463,17 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     // Big red header that's impossible to miss
     auditPage.drawRectangle({
       x: 20,
-      y: height - 100,
+      y: height - 65,
       width: width - 40,
-      height: 80,
-      color: rgb(1, 0, 0),
+      height: 50,
+      color: rgb(44 / 255, 109 / 255, 251 / 255),
       borderColor: rgb(0, 0, 0),
       borderWidth: 3,
     });
 
     auditPage.drawText("AUDIT TRAIL PAGE", {
-      x: 50,
-      y: height - 70,
+      x: (width - 36 * 10) / 2,
+      y: height - 52.5,
       size: 36,
       font: helveticaBold,
       color: rgb(1, 1, 1),
@@ -481,15 +481,15 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     auditPage.drawText(`Document: ${document.name}`, {
       x: 50,
-      y: height - 140,
-      size: 16,
+      y: height - 100,
+      size: 14,
       font: helveticaBold,
       color: rgb(0, 0, 0),
     });
 
     auditPage.drawText(`Date: ${new Date().toLocaleDateString()}`, {
       x: 50,
-      y: height - 170,
+      y: height - 120,
       size: 14,
       font: helveticaBold,
       color: rgb(0, 0, 0),
@@ -519,7 +519,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     // Document Information Section
     auditPage.drawRectangle({
       x: margin,
-      y: yPos - 120,
+      y: height - 250,
       width: width - margin * 2,
       height: 90,
       color: rgb(0.97, 0.97, 0.97),
@@ -527,10 +527,10 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       borderWidth: 1,
     });
 
-    auditPage.drawText("Document Information", {
+    auditPage.drawText("Document Information:", {
       x: margin,
-      y: yPos,
-      size: 14,
+      y: height - 150,
+      size: 16,
       font: helveticaBoldFont,
       color: primaryBlue,
     });
@@ -554,7 +554,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     ];
 
     documentInfo.forEach((info, index) => {
-      const itemY = yPos - 45 - index * 18;
+      const itemY = height - 180 - index * 18;
       auditPage.drawText(`${info.label}`, {
         x: margin + 15,
         y: itemY,
@@ -576,7 +576,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     // Document History Section
     auditPage.drawText("Document History", {
       x: margin,
-      y: yPos,
+      y: height - 280,
       size: 16,
       font: helveticaBoldFont,
       color: primaryBlue,
@@ -788,7 +788,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       // Activity text (main action)
       auditPage.drawText(actionText, {
         x: margin + 25,
-        y: activityY + 10,
+        y: activityY + 5,
         size: 11,
         font: helveticaBoldFont,
         color: darkGray,
@@ -797,7 +797,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       // Timestamp
       auditPage.drawText(activityTime, {
         x: margin + 25,
-        y: activityY - 5,
+        y: activityY - 10,
         size: 9,
         font: helveticaFont,
         color: mediumGray,
@@ -807,7 +807,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       if (detailText) {
         auditPage.drawText(detailText, {
           x: margin + 25,
-          y: activityY - 18,
+          y: activityY - 21,
           size: 8,
           font: helveticaFont,
           color: rgb(0.6, 0.6, 0.6),
@@ -821,7 +821,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     if (signatureData && signatureData.length > 0) {
       auditPage.drawText("Signature Analysis", {
         x: margin,
-        y: yPos,
+        y: height - 450,
         size: 16,
         font: helveticaBoldFont,
         color: primaryBlue,
@@ -830,7 +830,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       yPos -= 25;
 
       signatureData.forEach((signature, index) => {
-        const signatureY = yPos - index * 30;
+        const signatureY = height - 480 - index * 30;
 
         const signatureType = signature.value.startsWith("data:image/")
           ? "Drawn signature"
@@ -838,8 +838,8 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
         auditPage.drawText(`Signature ${index + 1}: ${signatureType}`, {
           x: margin + 10,
-          y: signatureY,
-          size: 11,
+          y: signatureY + 8,
+          size: 10,
           font: helveticaBoldFont,
           color: darkGray,
         });
@@ -848,7 +848,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
           // For typed signatures, show content and font
           auditPage.drawText(`Content: "${signature.value}"`, {
             x: margin + 20,
-            y: signatureY - 15,
+            y: signatureY - 3,
             size: 9,
             font: helveticaFont,
             color: mediumGray,
@@ -857,7 +857,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
           if (signature.font) {
             auditPage.drawText(`Font: ${signature.font}`, {
               x: margin + 20,
-              y: signatureY - 25,
+              y: signatureY - 12,
               size: 9,
               font: helveticaFont,
               color: mediumGray,
@@ -867,7 +867,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
           // For canvas signatures, show technical details
           auditPage.drawText(`Type: Hand-drawn signature`, {
             x: margin + 20,
-            y: signatureY - 15,
+            y: signatureY - 3,
             size: 9,
             font: helveticaFont,
             color: mediumGray,
@@ -875,7 +875,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
           auditPage.drawText(`Format: Digital image (Base64 encoded)`, {
             x: margin + 20,
-            y: signatureY - 25,
+            y: signatureY - 12,
             size: 9,
             font: helveticaFont,
             color: mediumGray,
@@ -889,7 +889,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     // Security Section
     auditPage.drawText("Security & Verification", {
       x: margin,
-      y: yPos,
+      y: height - 700,
       size: 16,
       font: helveticaBoldFont,
       color: primaryBlue,
@@ -899,13 +899,12 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     const securityItems = [
       "Document integrity verified",
-      "Timestamp server: PenginSign Internal",
       "Email notifications sent",
       "Secure PDF generation completed",
     ];
 
     securityItems.forEach((item, index) => {
-      const itemY = yPos - index * 20;
+      const itemY = height - 720 - index * 20;
 
       auditPage.drawCircle({
         x: margin + 10,
@@ -935,15 +934,15 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     // Footer
     auditPage.drawLine({
-      start: { x: margin, y: yPos },
-      end: { x: width - margin, y: yPos },
+      start: { x: margin, y: height - 790 },
+      end: { x: width - margin, y: height - 790 },
       thickness: 1,
       color: lightGray,
     });
 
     auditPage.drawText("Powered by PenginSign", {
       x: margin,
-      y: yPos - 20,
+      y: height - 810,
       size: 10,
       font: helveticaFont,
       color: mediumGray,
@@ -952,7 +951,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     const generateTime = `Generated: ${new Date().toLocaleString()}`;
     auditPage.drawText(generateTime, {
       x: width - margin - helveticaFont.widthOfTextAtSize(generateTime, 10),
-      y: yPos - 20,
+      y: height - 810,
       size: 10,
       font: helveticaFont,
       color: mediumGray,
@@ -1438,36 +1437,82 @@ const testPdfUtils = async () => {
     console.log("🧪 Testing PDF Utils - Audit Trail Function");
     console.log("=====================================");
 
-    // Create dummy document data
+    // Create dummy document data from the image
     const dummyDocument = {
-      id: "test-document-12345",
-      name: "Test Contract.pdf",
-      fileName: "test-contract.pdf",
-      createdAt: new Date("2024-01-15T10:30:00Z"),
-      signedAt: new Date("2024-01-15T14:45:00Z"),
+      id: "MGI6AKSH",
+      name: "sample pic.pdf",
+      fileName: "sample pic.pdf",
+      createdAt: new Date("2025-08-08T23:29:00"),
+      signedAt: new Date("2025-08-08T23:29:00"),
+      status: "Signed",
+      by: "won",
       recipient: {
-        name: "John Smith",
-        email: "john.smith@example.com",
+        name: "naonyc123@gmail.com",
+        email: "naonyc123@gmail.com",
       },
+      history: [
+        {
+          event: "Document created",
+          date: "2025-08-08T23:29:00",
+          details: "File: sample pic.pdf",
+        },
+        {
+          event: "Document sent",
+          date: "2025-08-08T23:29:00",
+          details: "Sent to naonyc123@gmail.com",
+        },
+        {
+          event: "Document viewed",
+          date: "2025-08-08T23:40:00",
+          details: "Viewed by naonyc123@gmail.com",
+        },
+      ],
     };
 
-    // Create dummy signature data with both typed and canvas signatures
+    // Create dummy signature data from the Signature Analysis section
     const dummySignatureData = [
       {
         fieldId: "sig1",
-        value: "John Smith",
+        type: "Typed signature",
         font: "signature",
+        value: "GH",
       },
       {
         fieldId: "sig2",
-        value:
-          "data:image/png;base64,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",
-        font: "drawn",
+        type: "Typed signature",
+        font: "signature",
+        value: "G.H.",
       },
       {
         fieldId: "sig3",
-        value: "J.S.",
-        font: "signatura",
+        type: "Drawn signature",
+        value: "Hand-drawn signature",
+        format: "Image",
+        font: "signature",
+      },
+      {
+        fieldId: "sig4",
+        type: "Typed signature",
+        font: "signature",
+        value: "naonyc@gmail.com",
+      },
+      {
+        fieldId: "sig5",
+        type: "Typed signature",
+        font: "signature",
+        value: "Product Manager",
+      },
+      {
+        fieldId: "sig6",
+        type: "Typed signature",
+        font: "signature",
+        value: "222 ST",
+      },
+      {
+        fieldId: "sig7",
+        type: "Typed signature",
+        font: "signature",
+        value: "2025-08-08",
       },
     ];
 
@@ -1477,19 +1522,19 @@ const testPdfUtils = async () => {
     const testPage = testPdfDoc.addPage([612, 792]);
     const helvetica = await testPdfDoc.embedFont(StandardFonts.Helvetica);
 
-    testPage.drawText("TEST DOCUMENT", {
+    testPage.drawText("AUDIT TRAIL TEST DOCUMENT", {
       x: 50,
       y: 700,
-      size: 24,
+      size: 18,
       font: helvetica,
       color: rgb(0, 0, 0),
     });
 
     testPage.drawText(
-      "This is a test document for audit trail functionality.",
+      "This is a dummy document with simulated audit trail data.",
       {
         x: 50,
-        y: 650,
+        y: 670,
         size: 12,
         font: helvetica,
         color: rgb(0, 0, 0),
@@ -1519,16 +1564,14 @@ const testPdfUtils = async () => {
     // Save the audit PDF to a file so you can view it
     const fs = await import("fs");
     const path = await import("path");
-
     const outputPath = path.join(process.cwd(), "test-audit-trail.pdf");
     fs.writeFileSync(outputPath, auditPdfBytes);
+
     console.log(`💾 Audit trail PDF saved to: ${outputPath}`);
     console.log("📖 You can now open this file to view the audit trail page!");
 
     if (auditPdfBytes.length > testPdfBytes.length) {
       console.log("✅ SUCCESS: Audit trail was added successfully!");
-
-      // Verify page count increase
       const originalDoc = await PDFDocument.load(testPdfBytes);
       const auditDoc = await PDFDocument.load(auditPdfBytes);
 
