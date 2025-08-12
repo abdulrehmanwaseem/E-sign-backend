@@ -11,6 +11,8 @@ import errorMiddleware from "./src/middlewares/errorMiddleware.js";
 
 // ES6 __dirname equivalent
 // Testing commit
+// Testing commit: 2
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
