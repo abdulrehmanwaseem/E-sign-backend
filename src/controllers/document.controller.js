@@ -13,7 +13,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { createSignedPDF } from "../utils/pdfUtils.js";
 
 // @desc    Get user's document library
-// @route   GET /api/documents/library
+// @route   GET /api/dashboard/documents/library
 // @access  Private
 export const getUserLibrary = asyncHandler(async (req, res) => {
   const userId = req.user.id;
@@ -43,7 +43,7 @@ export const getUserLibrary = asyncHandler(async (req, res) => {
 });
 
 // @desc    Check if file exists by name for current user
-// @route   GET /api/documents/check-exists?fileName=filename.pdf
+// @route   GET /api/dashboard/documents/check-exists?fileName=filename.pdf
 // @access  Private
 export const checkFileExists = asyncHandler(async (req, res) => {
   const { fileName } = req.query;
@@ -87,7 +87,7 @@ export const checkFileExists = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete document from library
-// @route   DELETE /api/documents/library/:id
+// @route   DELETE /api/dashboard/documents/library/:id
 // @access  Private
 export const deleteDocumentFromLibrary = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -128,7 +128,7 @@ export const deleteDocumentFromLibrary = asyncHandler(async (req, res) => {
 });
 
 // @desc    Create document and send for signing (Combined flow)
-// @route   POST /api/documents/send-for-signing
+// @route   POST /api/dashboard/documents/send-for-signing
 // @access  Private
 export const createAndSendDocument = asyncHandler(async (req, res) => {
   const recipient = JSON.parse(req.body.recipient);
@@ -300,7 +300,7 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get all documents for user
-// @route   GET /api/documents
+// @route   GET /api/dashboard/documents
 // @access  Private
 export const getDocuments = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, status, search } = req.query;
@@ -369,7 +369,7 @@ export const getDocuments = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get single document
-// @route   GET /api/documents/:id
+// @route   GET /api/dashboard/documents/:id
 // @access  Private
 export const getDocumentById = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -421,7 +421,7 @@ export const getDocumentById = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get document for signing (public access with token)
-// @route   GET /api/documents/sign/:accessToken
+// @route   GET /api/dashboard/documents/sign/:accessToken
 // @access  Public
 export const getDocumentForSigning = asyncHandler(async (req, res) => {
   const { accessToken } = req.params;
@@ -497,7 +497,7 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
 });
 
 // @desc    Submit signature
-// @route   POST /api/documents/sign/:accessToken/submit
+// @route   POST /api/dashboard/documents/sign/:accessToken/submit
 // @access  Public
 export const submitSignature = asyncHandler(async (req, res, next) => {
   const { accessToken } = req.params;
@@ -638,7 +638,7 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
 });
 
 // @desc    Get document audit trail
-// @route   GET /api/documents/:id/audit-trail
+// @route   GET /api/dashboard/documents/:id/audit-trail
 // @access  Private
 export const getDocumentAuditTrail = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -673,7 +673,7 @@ export const getDocumentAuditTrail = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete document
-// @route   DELETE /api/documents/:id
+// @route   DELETE /api/dashboard/documents/:id
 // @access  Private
 export const deleteDocument = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -722,7 +722,7 @@ export const deleteDocument = asyncHandler(async (req, res) => {
 });
 
 // @desc    Cancel document
-// @route   PATCH /api/documents/:id/cancel
+// @route   PATCH /api/dashboard/documents/:id/cancel
 // @access  Private
 export const cancelDocument = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -779,5 +779,69 @@ export const cancelDocument = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error("Cancel document error:", error);
     throw new ApiError("Failed to cancel document", 400);
+  }
+});
+
+// @desc    Get all templates
+// @route   GET /api/dashboard/templates
+// @access  Public
+export const getTemplates = asyncHandler(async (req, res) => {
+  const { category, search, page = 1, limit = 8 } = req.query;
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const take = parseInt(limit);
+
+  const where = {
+    ...(category && { category: category.toUpperCase() }),
+    ...(search && {
+      OR: [
+        { name: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+      ],
+    }),
+  };
+
+  try {
+    const [templates, total] = await Promise.all([
+      prisma.template.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          category: true,
+          fileUrl: true,
+          publicId: true,
+          fileSize: true,
+          usageCount: true,
+          createdAt: true,
+        },
+        orderBy: [
+          { usageCount: "desc" }, // Most used first
+          { createdAt: "desc" }, // Newest first
+        ],
+        skip,
+        take,
+      }),
+      prisma.template.count({ where }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: "Templates retrieved successfully",
+      data: {
+        templates,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / take),
+          totalCount: total,
+          hasNextPage: skip + take < total,
+          hasPrevPage: page > 1,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get templates error:", error);
+    throw new ApiError("Failed to fetch templates", 500);
   }
 });

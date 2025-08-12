@@ -31,6 +31,24 @@ model User {
   @@unique([provider, providerId])
 }
 
+model Template {
+  id          String            @id @default(cuid())
+  name        String            // Template name (e.g., "Employment Contract")
+  description String?           // Brief description of the template
+  category    TemplateCategory  // Category enum
+  fileUrl     String            // Cloudinary URL or file path
+  publicId    String            // Cloudinary public_id
+  fileSize    BigInt?           // File size in bytes
+
+  // Simple metadata
+  usageCount      Int               @default(0) // Track how many times used
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  @@index([category])
+}
+
 model Document {
   id                 String            @id @default(cuid())
   name               String            
@@ -147,4 +165,17 @@ enum ActivityAction {
   COMPLETED
   CANCELLED
   DOWNLOADED
+}
+
+enum TemplateCategory {
+  BUSINESS
+  LEGAL
+  EDUCATION
+  HEALTHCARE
+  REAL_ESTATE
+  EMPLOYMENT
+  FINANCE
+  PERSONAL
+  GOVERNMENT
+  OTHER
 }
