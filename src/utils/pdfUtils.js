@@ -2,6 +2,7 @@ import { v2 as cloudinary } from "cloudinary";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { v4 as uuid } from "uuid";
 import { prisma } from "../config/dbConnection.js";
+import fontkit from "@pdf-lib/fontkit";
 
 /**
  * Downloads Google Font files and returns font buffers
@@ -9,119 +10,122 @@ import { prisma } from "../config/dbConnection.js";
  */
 const downloadGoogleFonts = async () => {
   const fonts = {
-    robotoFlex: null,
+    inter: null,
+    interBold: null,
     borel: null,
     leagueScript: null,
   };
 
   try {
-    console.log("📥 Downloading Google Fonts...");
+    console.log("📥 Downloading EXACT Google Fonts from your CSS imports...");
 
-    // Method 1: Try to get fonts via Google Fonts API
-    // Roboto (Regular) - Using a more reliable URL
-    const robotoUrls = [
-      "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxKKTU1Kg.woff2", // Roboto Regular
-      "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2", // Roboto fallback
-    ];
-
-    for (const url of robotoUrls) {
-      try {
-        console.log("🔄 Fetching Roboto from:", url);
-        const response = await fetch(url);
+    // Inter Regular (400) - Exact URL from Google Fonts CSS API
+    const interRegularUrl =
+      "https://fonts.gstatic.com/s/inter/v19/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyeMZg.ttf";
+    try {
+      console.log("🔄 Fetching Inter Regular (400) from Google Fonts...");
+      const response = await fetch(interRegularUrl);
+      console.log(
+        "📡 Inter Regular response:",
+        response.status,
+        response.statusText
+      );
+      if (response.ok) {
+        fonts.inter = await response.arrayBuffer();
         console.log(
-          "📡 Roboto response status:",
-          response.status,
-          response.statusText
+          "✅ Downloaded Inter Regular, size:",
+          fonts.inter.byteLength,
+          "bytes"
         );
-        if (response.ok) {
-          fonts.robotoFlex = await response.arrayBuffer();
-          console.log(
-            "✅ Downloaded Roboto, size:",
-            fonts.robotoFlex.byteLength,
-            "bytes"
-          );
-          break;
-        }
-      } catch (error) {
-        console.error("❌ Error downloading Roboto:", error.message);
-        continue;
       }
+    } catch (error) {
+      console.error("❌ Error downloading Inter Regular:", error.message);
     }
 
-    // Satisfy (cursive font similar to Borel)
-    const cursiveUrls = [
-      "https://fonts.gstatic.com/s/satisfy/v17/rP2Hp2yn6lkG50LoOZSCHBeHFl0.woff2",
-      "https://fonts.gstatic.com/s/dancingscript/v25/If2cXTr6YS-zF4S-kcSWSVi_sxjsohD9F50Ruu7BMSo3Sup8.woff2", // Dancing Script as backup
-    ];
-
-    for (const url of cursiveUrls) {
-      try {
-        console.log("🔄 Fetching cursive font from:", url);
-        const response = await fetch(url);
+    // Inter Bold (700) - For bold text fields
+    const interBoldUrl =
+      "https://fonts.gstatic.com/s/inter/v19/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuBiYvZg.ttf";
+    try {
+      console.log("🔄 Fetching Inter Bold (700) from Google Fonts...");
+      const response = await fetch(interBoldUrl);
+      console.log(
+        "📡 Inter Bold response:",
+        response.status,
+        response.statusText
+      );
+      if (response.ok) {
+        fonts.interBold = await response.arrayBuffer();
         console.log(
-          "📡 Cursive font response status:",
-          response.status,
-          response.statusText
+          "✅ Downloaded Inter Bold, size:",
+          fonts.interBold.byteLength,
+          "bytes"
         );
-        if (response.ok) {
-          fonts.borel = await response.arrayBuffer();
-          console.log(
-            "✅ Downloaded cursive font, size:",
-            fonts.borel.byteLength,
-            "bytes"
-          );
-          break;
-        }
-      } catch (error) {
-        console.error("❌ Error downloading cursive font:", error.message);
-        continue;
       }
+    } catch (error) {
+      console.error("❌ Error downloading Inter Bold:", error.message);
     }
 
-    // Great Vibes (script font similar to League Script)
-    const scriptUrls = [
-      "https://fonts.gstatic.com/s/greatvibes/v16/RWmMoKWR9v4ksMfaWd_JN-XCg6UKDXlq.woff2",
-      "https://fonts.gstatic.com/s/allura/v13/9jAnDAe7B1mYvnNRRgT4HQis.woff2", // Allura as backup
-    ];
-
-    for (const url of scriptUrls) {
-      try {
-        console.log("🔄 Fetching script font from:", url);
-        const response = await fetch(url);
+    // Borel - Exact URL from Google Fonts CSS API
+    const borelUrl =
+      "https://fonts.gstatic.com/s/borel/v3/6qLOKZsftAPisgsh.ttf";
+    try {
+      console.log("🔄 Fetching Borel from Google Fonts...");
+      const response = await fetch(borelUrl);
+      console.log("📡 Borel response:", response.status, response.statusText);
+      if (response.ok) {
+        fonts.borel = await response.arrayBuffer();
         console.log(
-          "📡 Script font response status:",
-          response.status,
-          response.statusText
+          "✅ Downloaded Borel, size:",
+          fonts.borel.byteLength,
+          "bytes"
         );
-        if (response.ok) {
-          fonts.leagueScript = await response.arrayBuffer();
-          console.log(
-            "✅ Downloaded script font, size:",
-            fonts.leagueScript.byteLength,
-            "bytes"
-          );
-          break;
-        }
-      } catch (error) {
-        console.error("❌ Error downloading script font:", error.message);
-        continue;
       }
+    } catch (error) {
+      console.error("❌ Error downloading Borel:", error.message);
     }
 
-    console.log("🎨 Google Fonts download completed");
+    // League Script - Exact URL from Google Fonts CSS API
+    const leagueScriptUrl =
+      "https://fonts.gstatic.com/s/leaguescript/v29/CSR54zpSlumSWj9CGVsoBZdeaNM.ttf";
+    try {
+      console.log("🔄 Fetching League Script from Google Fonts...");
+      const response = await fetch(leagueScriptUrl);
+      console.log(
+        "📡 League Script response:",
+        response.status,
+        response.statusText
+      );
+      if (response.ok) {
+        fonts.leagueScript = await response.arrayBuffer();
+        console.log(
+          "✅ Downloaded League Script, size:",
+          fonts.leagueScript.byteLength,
+          "bytes"
+        );
+      }
+    } catch (error) {
+      console.error("❌ Error downloading League Script:", error.message);
+    }
+
+    console.log("🎨 EXACT Google Fonts download completed!");
     console.log("📊 Font download summary:");
     console.log(
-      "- Roboto (signature):",
-      fonts.robotoFlex ? `${fonts.robotoFlex.byteLength} bytes` : "FAILED"
+      "- Inter Regular (signature):",
+      fonts.inter ? `${fonts.inter.byteLength} bytes` : "FAILED"
     );
     console.log(
-      "- Cursive (signatura):",
+      "- Inter Bold (titles):",
+      fonts.interBold ? `${fonts.interBold.byteLength} bytes` : "FAILED"
+    );
+    console.log(
+      "- Borel (signatura):",
       fonts.borel ? `${fonts.borel.byteLength} bytes` : "FAILED"
     );
     console.log(
-      "- Script (signaturia):",
+      "- League Script (signaturia):",
       fonts.leagueScript ? `${fonts.leagueScript.byteLength} bytes` : "FAILED"
     );
+
     return fonts;
   } catch (error) {
     console.error("❌ Error downloading Google Fonts:", error);
@@ -155,12 +159,14 @@ export const createSignedPDF = async (document, signatureData) => {
     const originalPdfBuffer = await downloadPdfFromCloudinary(
       document.publicId
     );
-
     console.log("Original PDF buffer size:", originalPdfBuffer.length);
 
-    // Load the PDF document
+    // Load the PDF document and register fontkit
     const pdfDoc = await PDFDocument.load(originalPdfBuffer);
+    pdfDoc.registerFontkit(fontkit); // ✅ This is the crucial step!
+
     console.log("PDF loaded successfully, pages:", pdfDoc.getPageCount());
+    console.log("✅ Fontkit registered successfully");
 
     // Get all pages
     const pages = pdfDoc.getPages();
@@ -177,26 +183,26 @@ export const createSignedPDF = async (document, signatureData) => {
     );
     const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
 
-    // Embed Google Fonts if available
-    let robotoFlexFont = null;
+    // Embed Google Fonts with proper error handling
+    let interFont = null;
     let borelFont = null;
     let leagueScriptFont = null;
 
     try {
-      if (googleFonts.robotoFlex) {
+      if (googleFonts.inter) {
         console.log(
-          "🔧 Attempting to embed Roboto Flex, buffer size:",
-          googleFonts.robotoFlex.byteLength
+          "🔧 Attempting to embed Inter font, buffer size:",
+          googleFonts.inter.byteLength
         );
-        robotoFlexFont = await pdfDoc.embedFont(googleFonts.robotoFlex);
-        console.log("✅ Embedded Roboto Flex font successfully");
+        interFont = await pdfDoc.embedFont(googleFonts.inter);
+        console.log("✅ Embedded Inter font successfully");
       } else {
-        console.log("❌ Roboto Flex font buffer is null or empty");
+        console.log("❌ Inter font buffer is null or empty");
       }
 
       if (googleFonts.borel) {
         console.log(
-          "🔧 Attempting to embed Borel, buffer size:",
+          "🔧 Attempting to embed Borel font, buffer size:",
           googleFonts.borel.byteLength
         );
         borelFont = await pdfDoc.embedFont(googleFonts.borel);
@@ -207,7 +213,7 @@ export const createSignedPDF = async (document, signatureData) => {
 
       if (googleFonts.leagueScript) {
         console.log(
-          "🔧 Attempting to embed League Script, buffer size:",
+          "🔧 Attempting to embed League Script font, buffer size:",
           googleFonts.leagueScript.byteLength
         );
         leagueScriptFont = await pdfDoc.embedFont(googleFonts.leagueScript);
@@ -218,6 +224,7 @@ export const createSignedPDF = async (document, signatureData) => {
     } catch (fontError) {
       console.error("❌ Error embedding Google Fonts:", fontError);
       console.error("Font error details:", fontError.message);
+      console.error("Font error stack:", fontError.stack);
     }
 
     // Create a map of field data for quick lookup
@@ -226,20 +233,6 @@ export const createSignedPDF = async (document, signatureData) => {
     );
 
     console.log("Processing", document.fields.length, "fields");
-    console.log(
-      "Signature data received:",
-      JSON.stringify(signatureData, null, 2)
-    );
-    console.log("Field data map:", Array.from(fieldDataMap.entries()));
-    console.log(
-      "Document fields:",
-      document.fields.map((f) => ({
-        id: f.id,
-        fieldId: f.fieldId,
-        type: f.fieldType,
-        pageNumber: f.pageNumber,
-      }))
-    );
 
     // Dynamic Coordinate Conversion System
     console.log("\n=== DYNAMIC COORDINATE CONVERSION SYSTEM ===");
@@ -275,9 +268,8 @@ export const createSignedPDF = async (document, signatureData) => {
       const scaledHeight = field.height * scaleFactor;
 
       // Convert from top-left origin (frontend) to bottom-left origin (PDF)
-      // Use precise calculation without rounding
       const pdfX = scaledX;
-      const pdfY = actualPageHeight - scaledY - scaledHeight; // Flip Y-axis and account for height
+      const pdfY = actualPageHeight - scaledY - scaledHeight;
 
       console.log(`\n--- Field ${field.id} (Page ${field.pageNumber}) ---`);
       console.log(
@@ -299,7 +291,7 @@ export const createSignedPDF = async (document, signatureData) => {
           helveticaBold: helveticaBoldFont,
           timesRoman: timesRomanFont,
           // Google Fonts
-          robotoFlex: robotoFlexFont,
+          inter: interFont,
           borel: borelFont,
           leagueScript: leagueScriptFont,
         },
@@ -312,8 +304,6 @@ export const createSignedPDF = async (document, signatureData) => {
 
     // Add audit trail page before final save
     console.log("📋 Adding audit trail page...");
-    console.log("📊 PDF bytes before audit trail:", pdfBytes.length);
-
     let auditPdfBytes;
     try {
       auditPdfBytes = await addAuditTrailPage(
@@ -321,42 +311,9 @@ export const createSignedPDF = async (document, signatureData) => {
         document,
         signatureData
       );
-
-      console.log("✅ Audit trail function completed");
-      console.log("📊 PDF bytes after audit trail:", auditPdfBytes.length);
-      console.log(
-        "📈 Size difference:",
-        auditPdfBytes.length - pdfBytes.length,
-        "bytes"
-      );
-
-      // Verify that bytes actually changed
-      if (auditPdfBytes.length === pdfBytes.length) {
-        console.error(
-          "⚠️ WARNING: PDF size didn't change - audit trail might not have been added!"
-        );
-
-        // Compare first few bytes to see if they're identical
-        const originalStart = Array.from(pdfBytes.slice(0, 50));
-        const auditStart = Array.from(auditPdfBytes.slice(0, 50));
-        const identical = originalStart.every(
-          (byte, index) => byte === auditStart[index]
-        );
-
-        if (identical) {
-          console.error(
-            "❌ ERROR: PDF bytes are identical - audit trail was NOT added!"
-          );
-        }
-      } else {
-        console.log(
-          "✅ PDF size changed - audit trail appears to have been added successfully"
-        );
-      }
+      console.log("✅ Audit trail added successfully");
     } catch (auditError) {
-      console.error("❌ Error in addAuditTrailPage function:", auditError);
-      console.error("❌ Audit error stack:", auditError.stack);
-      console.log("📄 Falling back to original PDF without audit trail");
+      console.error("❌ Error adding audit trail:", auditError);
       auditPdfBytes = pdfBytes; // Fallback to original
     }
 
@@ -1192,14 +1149,8 @@ const embedSignature = async (
   fonts,
   signatureFont = "signature" // Default signature font
 ) => {
-  const {
-    helvetica,
-    helveticaBold,
-    timesRoman,
-    robotoFlex,
-    borel,
-    leagueScript,
-  } = fonts;
+  const { helvetica, helveticaBold, timesRoman, inter, borel, leagueScript } =
+    fonts;
 
   try {
     // Check if signature is drawn (base64 image) or typed text
@@ -1275,10 +1226,10 @@ const embedSignature = async (
       console.log(`Received signatureFont: "${signatureFont}"`);
 
       switch (signatureFont) {
-        case "signature": // Roboto Flex or enhanced Helvetica
-          if (robotoFlex) {
-            selectedFont = robotoFlex;
-            console.log(`→ Using Google Roboto for "signature"`);
+        case "signature": // Tnter Flex or enhanced Helvetica
+          if (inter) {
+            selectedFont = inter;
+            console.log(`→ Using Google Tnter for "signature"`);
           } else {
             selectedFont = helvetica;
             fontSize = Math.min(16, height * 0.7); // Clean, professional size
@@ -1324,10 +1275,10 @@ const embedSignature = async (
           break;
 
         default:
-          if (robotoFlex) {
-            selectedFont = robotoFlex;
+          if (inter) {
+            selectedFont = inter;
             console.log(
-              `→ Using Google Roboto (default) for unknown font: "${signatureFont}"`
+              `→ Using Google Tnter (default) for unknown font: "${signatureFont}"`
             );
           } else {
             selectedFont = helvetica;
@@ -1356,8 +1307,8 @@ const embedSignature = async (
 
       console.log(
         `✅ Signature "${signatureValue}" embedded with ${
-          selectedFont === robotoFlex
-            ? "Roboto Flex"
+          selectedFont === inter
+            ? "Tnter Flex"
             : selectedFont === borel
             ? "Borel"
             : selectedFont === leagueScript
@@ -1385,18 +1336,18 @@ const embedTextualField = async (
   fonts,
   fieldType = "TEXT"
 ) => {
-  const { helvetica, helveticaBold, timesRoman, robotoFlex } = fonts;
+  const { helvetica, helveticaBold, timesRoman, inter } = fonts;
 
   try {
     let fontSize = Math.min(12, height * 0.6);
     if (fontSize < 8) fontSize = 8;
 
     // Choose font based on field type
-    let selectedFont = robotoFlex || helvetica; // Use Roboto Flex if available, otherwise Helvetica
+    let selectedFont = inter || helvetica; // Use Tnter Flex if available, otherwise Helvetica
 
     switch (fieldType.toUpperCase()) {
       case "FULLNAME":
-        selectedFont = robotoFlex || timesRoman; // Elegant font for names
+        selectedFont = inter || timesRoman; // Elegant font for names
         break;
       case "TITLE":
         selectedFont = helveticaBold; // Bold font for titles
@@ -1405,13 +1356,13 @@ const embedTextualField = async (
         selectedFont = helveticaBold; // Bold font for initials
         break;
       case "DATE":
-        selectedFont = robotoFlex || helvetica; // Regular font for dates
+        selectedFont = inter || helvetica; // Regular font for dates
         break;
       case "EMAIL":
-        selectedFont = robotoFlex || helvetica; // Regular font for emails
+        selectedFont = inter || helvetica; // Regular font for emails
         break;
       default:
-        selectedFont = robotoFlex || helvetica; // Default font
+        selectedFont = inter || helvetica; // Default font
         break;
     }
 

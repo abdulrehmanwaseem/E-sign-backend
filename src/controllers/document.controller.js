@@ -57,12 +57,14 @@ export const checkFileExists = asyncHandler(async (req, res) => {
     where: {
       fileName: fileName,
       createdById: userId,
+      isLibraryFile: true,
     },
     select: {
       id: true,
       name: true,
       fileName: true,
       filePath: true,
+      publicId: true,
       fileType: true,
       extension: true,
     },

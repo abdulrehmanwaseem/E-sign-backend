@@ -16,27 +16,29 @@ import {
 import isAuthenticated from "../middlewares/isAuthenticated.js";
 import { singleFile } from "../middlewares/multerMiddleware.js";
 
-const router = express.Router();
+export const documentRouter = express.Router();
 
 // Public routes (for signing)
-router.get("/signing/:accessToken", getDocumentForSigning);
-router.post("/signing/:accessToken/submit", submitSignature);
+documentRouter.get("/signing/:accessToken", getDocumentForSigning);
+documentRouter.post("/signing/:accessToken/submit", submitSignature);
 
 // Library routes
-router.get("/library", isAuthenticated, getUserLibrary);
-router.get("/check-exists", isAuthenticated, checkFileExists);
-router.delete("/library/:id", isAuthenticated, deleteDocumentFromLibrary);
+documentRouter.get("/library", isAuthenticated, getUserLibrary);
+documentRouter.get("/check-exists", isAuthenticated, checkFileExists);
+documentRouter.delete(
+  "/library/:id",
+  isAuthenticated,
+  deleteDocumentFromLibrary
+);
 
-router.post(
+documentRouter.post(
   "/send-for-signing",
   isAuthenticated,
   singleFile,
   createAndSendDocument
 );
-router.get("/", isAuthenticated, getDocuments);
-router.get("/:id", isAuthenticated, getDocumentById);
-router.patch("/:id/cancel", isAuthenticated, cancelDocument);
-router.delete("/:id", isAuthenticated, deleteDocument);
-router.get("/:id/audit-trail", isAuthenticated, getDocumentAuditTrail);
-
-export default router;
+documentRouter.get("/", isAuthenticated, getDocuments);
+documentRouter.get("/:id", isAuthenticated, getDocumentById);
+documentRouter.patch("/:id/cancel", isAuthenticated, cancelDocument);
+documentRouter.delete("/:id", isAuthenticated, deleteDocument);
+documentRouter.get("/:id/audit-trail", isAuthenticated, getDocumentAuditTrail);
