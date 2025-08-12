@@ -1,17 +1,15 @@
 import crypto from "crypto";
 import asyncHandler from "express-async-handler";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import fetch from "node-fetch";
 import { prisma } from "../config/dbConnection.js";
 import {
   deleteFileFromCloudinary,
   uploadFileToCloudinary,
 } from "../lib/cloudinary.js";
-import { ApiError } from "../utils/ApiError.js";
 import {
-  sendSigningInvitation,
   sendCompletionNotification,
+  sendSigningInvitation,
 } from "../lib/emailService.js";
+import { ApiError } from "../utils/ApiError.js";
 import { createSignedPDF } from "../utils/pdfUtils.js";
 
 // @desc    Get user's document library
@@ -23,23 +21,14 @@ export const getUserLibrary = asyncHandler(async (req, res) => {
   const documents = await prisma.document.findMany({
     where: {
       createdById: userId,
+      isLibraryFile: true,
     },
     select: {
       id: true,
+      publicId: true,
       name: true,
-      fileName: true,
-      fileType: true,
       filePath: true,
-      extension: true,
-      status: true,
       createdAt: true,
-      updatedAt: true,
-      recipient: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
     },
     orderBy: {
       createdAt: "desc",
@@ -143,12 +132,14 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
   const recipient = JSON.parse(req.body.recipient);
   const signatureFields = JSON.parse(req.body.signatureFields);
 
-  const { name, fileType } = req.body;
+  const {
+    name,
+    fileType = "pdf",
+    existingFileUrl,
+    existingPublicId,
+    existingFileName,
+  } = req.body;
   const createdById = req.user.id;
-
-  if (!req.file) {
-    throw new ApiError("File is required", 400);
-  }
 
   if (!recipient || !signatureFields || signatureFields.length === 0) {
     throw new ApiError("Recipient and signature fields are required", 400);
@@ -158,24 +149,21 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
     throw new ApiError("Document name and file type are required", 400);
   }
 
-  // // Check if file already exists for this user
-  // const existingFile = await prisma.document.findFirst({
-  //   where: {
-  //     fileName: req.file.originalname,
-  //     createdById: createdById,
-  //   },
-  // });
-
-  // if (existingFile) {
-  //   throw new ApiError(
-  //     `File "${req.file.originalname}" already exists in your library. Please use it from your library instead.`,
-  //     409
-  //   );
-  // }
-
   try {
-    // Step 1: Upload file to Cloudinary
-    const cloudinaryResult = await uploadFileToCloudinary(req.file);
+    let cloudinaryResult = null;
+
+    if (!existingFileUrl) {
+      if (!req.file) throw new ApiError("File is required", 400);
+
+      cloudinaryResult = await uploadFileToCloudinary(req.file);
+    } else {
+      // Use existing uploaded file
+      cloudinaryResult = {
+        url: existingFileUrl,
+        public_id: existingPublicId || null,
+        extension: fileType, // or extract from URL
+      };
+    }
 
     console.log("Cloudinary upload result:", cloudinaryResult); // Debug log
 
@@ -199,33 +187,46 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
     }
 
     // Step 3: Create document in database
-    const document = await prisma.document.create({
-      data: {
-        name,
-        fileName: req.file.originalname,
-        fileType,
-        filePath: cloudinaryResult.url, // Store Cloudinary URL
-        publicId: cloudinaryResult.public_id, // Store public_id for deletion
-        extension: cloudinaryResult.extension, // Store file extension
-        accessToken: crypto.randomUUID(), // Generate unique access token for document
-        createdById,
-        recipientId: documentRecipient.id,
-        status: "PENDING", // Use PENDING status, SENT is an activity action
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-      },
-      include: {
-        recipient: true,
-        createdBy: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
+    let document;
+    if (existingFileUrl) {
+      // Create a new document, linked to the library source
+      document = await prisma.document.create({
+        data: {
+          name,
+          fileName: existingFileName,
+          fileType,
+          filePath: existingFileUrl,
+          publicId: existingPublicId,
+          extension: fileType,
+          accessToken: crypto.randomUUID(),
+          createdById,
+          recipientId: documentRecipient.id,
+          status: "PENDING",
+          expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          isLibraryFile: false,
         },
-      },
-    });
-
+        include: { recipient: true, createdBy: true },
+      });
+    } else {
+      // Fresh upload that goes into library
+      document = await prisma.document.create({
+        data: {
+          name,
+          fileName: req.file.originalname,
+          fileType,
+          filePath: cloudinaryResult.url,
+          publicId: cloudinaryResult.public_id,
+          extension: cloudinaryResult.extension,
+          accessToken: crypto.randomUUID(),
+          createdById,
+          recipientId: documentRecipient.id,
+          status: "PENDING",
+          expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+          isLibraryFile: true,
+        },
+        include: { recipient: true, createdBy: true },
+      });
+    }
     // Step 4: Create signature fields
     const fieldsData = signatureFields.map((field) => ({
       documentId: document.id,
@@ -253,8 +254,8 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
           details: {
-            fileName: req.file.originalname,
-            fileSize: req.file.size,
+            fileName: existingFileName || req.file?.originalname,
+            fileSize: req.file?.size,
           },
         },
       }),

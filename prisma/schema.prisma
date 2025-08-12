@@ -45,6 +45,7 @@ model Document {
   signedPdfUrl       String?           // URL of the signed PDF with embedded signatures
   createdById        String
   recipientId        String            // Removed @unique to allow multiple docs per recipient
+  isLibraryFile     Boolean  @default(false)
 
   expiresAt          DateTime?
 
