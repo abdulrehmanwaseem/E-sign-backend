@@ -1,17 +1,16 @@
 import express from "express";
 import {
+  cancelDocument,
+  checkFileExists,
   createAndSendDocument,
   deleteDocument,
+  deleteDocumentFromLibrary,
   getDocumentAuditTrail,
   getDocumentById,
   getDocumentForSigning,
   getDocuments,
-  submitSignature,
   getUserLibrary,
-  checkFileExists,
-  deleteDocumentFromLibrary,
-  cancelDocument,
-  getTemplates,
+  submitSignature,
 } from "../controllers/document.controller.js";
 
 import isAuthenticated from "../middlewares/isAuthenticated.js";
@@ -31,9 +30,6 @@ documentRouter.delete(
   isAuthenticated,
   deleteDocumentFromLibrary
 );
-
-// Template routes:
-documentRouter.get("/templates", isAuthenticated, getTemplates);
 
 documentRouter.post(
   "/send-for-signing",

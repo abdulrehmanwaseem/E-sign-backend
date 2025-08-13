@@ -1,48 +1,68 @@
 import asyncHandler from "express-async-handler";
 import { prisma } from "../config/dbConnection.js";
-import { ApiError } from "../utils/ApiError.js";
 import {
-  uploadFileToCloudinary,
   deleteFileFromCloudinary,
+  uploadFileToCloudinary,
 } from "../lib/cloudinary.js";
+import { ApiError } from "../utils/ApiError.js";
 
-// @desc    Get template categories with counts
-// @route   GET /api/templates/categories
-// @access  Public
-export const getTemplateCategories = asyncHandler(async (req, res) => {
+// @desc    Get all templates
+// @route   GET /api/templates
+// @access  Private
+export const getTemplates = asyncHandler(async (req, res) => {
+  const { search, page = 1, limit = 8 } = req.query;
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const take = parseInt(limit);
+
+  const where = {
+    ...(search && {
+      OR: [
+        { name: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+      ],
+    }),
+  };
+
   try {
-    const categories = await prisma.template.groupBy({
-      by: ["category"],
-      _count: {
-        category: true,
-      },
-      orderBy: {
-        _count: {
-          category: "desc",
+    const [templates, total] = await Promise.all([
+      prisma.template.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          fileUrl: true,
+          publicId: true,
+          createdAt: true,
+          updatedAt: true,
         },
-      },
-    });
-
-    // Format categories for frontend
-    const formattedCategories = categories.map((item) => ({
-      category: item.category,
-      count: item._count.category,
-      label: item.category
-        .replace("_", " ")
-        .toLowerCase()
-        .split(" ")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" "),
-    }));
+        orderBy: [
+          { createdAt: "desc" }, // Newest first
+        ],
+        skip,
+        take,
+      }),
+      prisma.template.count({ where }),
+    ]);
 
     res.status(200).json({
       success: true,
-      message: "Categories retrieved successfully",
-      data: formattedCategories,
+      message: "Templates retrieved successfully",
+      data: {
+        templates,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / take),
+          totalCount: total,
+          hasNextPage: skip + take < total,
+          hasPrevPage: page > 1,
+        },
+      },
     });
   } catch (error) {
-    console.error("Get categories error:", error);
-    throw new ApiError("Failed to fetch categories", 500);
+    console.error("Get templates error:", error);
+    throw new ApiError("Failed to fetch templates", 500);
   }
 });
 
@@ -50,10 +70,10 @@ export const getTemplateCategories = asyncHandler(async (req, res) => {
 // @route   POST /api/templates
 // @access  Private (Admin only)
 export const createTemplate = asyncHandler(async (req, res) => {
-  const { name, description, category } = req.body;
+  const { name, description } = req.body;
 
-  if (!name || !category) {
-    throw new ApiError("Name and category are required", 400);
+  if (!name) {
+    throw new ApiError("Name is required", 400);
   }
 
   if (!req.file) {
@@ -69,10 +89,8 @@ export const createTemplate = asyncHandler(async (req, res) => {
       data: {
         name,
         description,
-        category: category.toUpperCase(),
         fileUrl: cloudinaryResult.url,
         publicId: cloudinaryResult.public_id,
-        fileSize: req.file.size,
       },
     });
 
@@ -92,7 +110,7 @@ export const createTemplate = asyncHandler(async (req, res) => {
 // @access  Private (Admin only)
 export const updateTemplate = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, description, category } = req.body;
+  const { name, description } = req.body;
 
   try {
     // Check if template exists
@@ -107,8 +125,7 @@ export const updateTemplate = asyncHandler(async (req, res) => {
     // Prepare update data
     const updateData = {
       ...(name && { name }),
-      ...(description && { description }),
-      ...(category && { category: category.toUpperCase() }),
+      ...(description !== undefined && { description }),
     };
 
     // Handle file update if new file is provided
@@ -122,7 +139,6 @@ export const updateTemplate = asyncHandler(async (req, res) => {
       const cloudinaryResult = await uploadFileToCloudinary(req.file);
       updateData.fileUrl = cloudinaryResult.url;
       updateData.publicId = cloudinaryResult.public_id;
-      updateData.fileSize = req.file.size;
     }
 
     // Update template
@@ -183,101 +199,37 @@ export const deleteTemplate = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Use template - increment usage count and return template data
-// @route   POST /api/templates/:id/use
-// @access  Private
-export const useTemplate = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    // Check if template exists
-    const template = await prisma.template.findUnique({
-      where: { id },
-    });
-
-    if (!template) {
-      throw new ApiError("Template not found", 404);
-    }
-
-    // Increment usage count
-    const updatedTemplate = await prisma.template.update({
-      where: { id },
-      data: {
-        usageCount: {
-          increment: 1,
-        },
-      },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Template ready for use",
-      data: {
-        templateId: updatedTemplate.id,
-        name: updatedTemplate.name,
-        fileUrl: updatedTemplate.fileUrl,
-        publicId: updatedTemplate.publicId,
-        description: updatedTemplate.description,
-        usageCount: updatedTemplate.usageCount,
-      },
-    });
-  } catch (error) {
-    console.error("Use template error:", error);
-    throw new ApiError("Failed to use template", 500);
-  }
-});
-
 // @desc    Get template statistics
 // @route   GET /api/templates/stats
 // @access  Private (Admin only)
 export const getTemplateStats = asyncHandler(async (req, res) => {
   try {
-    const [totalTemplates, totalUsage, categoryStats, topTemplates] =
-      await Promise.all([
-        // Total number of templates
-        prisma.template.count(),
+    const [totalTemplates, recentTemplates] = await Promise.all([
+      // Total number of templates
+      prisma.template.count(),
 
-        // Total usage across all templates
-        prisma.template.aggregate({
-          _sum: {
-            usageCount: true,
-          },
-        }),
-
-        // Usage by category
-        prisma.template.groupBy({
-          by: ["category"],
-          _sum: {
-            usageCount: true,
-          },
-          _count: {
-            category: true,
-          },
-        }),
-
-        // Top 5 most used templates
-        prisma.template.findMany({
-          select: {
-            id: true,
-            name: true,
-            category: true,
-            usageCount: true,
-          },
-          orderBy: {
-            usageCount: "desc",
-          },
-          take: 5,
-        }),
-      ]);
+      // Recent templates (last 3)
+      prisma.template.findMany({
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          createdAt: true,
+          fileUrl: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 3,
+      }),
+    ]);
 
     res.status(200).json({
       success: true,
       message: "Template statistics retrieved successfully",
       data: {
         totalTemplates,
-        totalUsage: totalUsage._sum.usageCount || 0,
-        categoryStats,
-        topTemplates,
+        recentTemplates,
       },
     });
   } catch (error) {

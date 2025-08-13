@@ -1,4 +1,3 @@
--- AlterEnum
 ALTER TYPE "public"."ActivityAction" ADD VALUE 'DOWNLOADED';
 
 -- AlterTable

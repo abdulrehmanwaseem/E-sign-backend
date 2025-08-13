@@ -25,6 +25,7 @@ model User {
   phoneOtpExpires DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  role          UserRole @default(USER)
 
   documents       Document[]
 
@@ -33,20 +34,13 @@ model User {
 
 model Template {
   id          String            @id @default(cuid())
-  name        String            // Template name (e.g., "Employment Contract")
-  description String?           // Brief description of the template
-  category    TemplateCategory  // Category enum
-  fileUrl     String            // Cloudinary URL or file path
-  publicId    String            // Cloudinary public_id
-  fileSize    BigInt?           // File size in bytes
-
-  // Simple metadata
-  usageCount      Int               @default(0) // Track how many times used
-
+  name        String            
+  description String?          
+  fileUrl     String           
+  publicId    String       
+      
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
-  
-  @@index([category])
 }
 
 model Document {
@@ -139,6 +133,11 @@ model DocumentActivity {
 }
 
 // Enums
+enum UserRole {
+  ADMIN
+  USER
+}
+
 enum DocumentStatus {
   SIGNED
   PENDING
@@ -167,15 +166,3 @@ enum ActivityAction {
   DOWNLOADED
 }
 
-enum TemplateCategory {
-  BUSINESS
-  LEGAL
-  EDUCATION
-  HEALTHCARE
-  REAL_ESTATE
-  EMPLOYMENT
-  FINANCE
-  PERSONAL
-  GOVERNMENT
-  OTHER
-}
