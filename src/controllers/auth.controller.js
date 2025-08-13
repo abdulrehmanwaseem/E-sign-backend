@@ -210,21 +210,7 @@ const resendOTP = TryCatch(async (req, res, next) => {
 });
 
 const getMyProfile = TryCatch(async (req, res, next) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user.id },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      avatar: true,
-      provider: true,
-      phone: true,
-      isEmailVerified: true,
-      isPhoneVerified: true,
-    },
-  });
-
+  const user = req?.user;
   res.json({
     status: "success",
     user,

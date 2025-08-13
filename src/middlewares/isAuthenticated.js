@@ -20,10 +20,14 @@ const isAuthenticated = async (req, res, next) => {
       select: {
         id: true,
         email: true,
+        role: true,
         firstName: true,
         lastName: true,
         avatar: true,
-        createdAt: true,
+        provider: true,
+        phone: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
       },
     });
     if (!currentUser) {
