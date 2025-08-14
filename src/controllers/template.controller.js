@@ -9,7 +9,7 @@ import { ApiError } from "../utils/ApiError.js";
 // @desc    Get all templates
 // @route   GET /api/templates
 // @access  Private
-export const getTemplates = asyncHandler(async (req, res) => {
+export const getTemplates = asyncHandler(async (req, res, next) => {
   const { search, page = 1, limit = 8 } = req.query;
 
   const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -62,22 +62,22 @@ export const getTemplates = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Get templates error:", error);
-    throw new ApiError("Failed to fetch templates", 500);
+    return next(new ApiError("Failed to fetch templates", 500));
   }
 });
 
 // @desc    Create new template
 // @route   POST /api/templates
 // @access  Private (Admin only)
-export const createTemplate = asyncHandler(async (req, res) => {
+export const createTemplate = asyncHandler(async (req, res, next) => {
   const { name, description } = req.body;
 
   if (!name) {
-    throw new ApiError("Name is required", 400);
+    return next(new ApiError("Name is required", 400));
   }
 
   if (!req.file) {
-    throw new ApiError("Template file is required", 400);
+    return next(new ApiError("Template file is required", 400));
   }
 
   try {
@@ -101,14 +101,14 @@ export const createTemplate = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Create template error:", error);
-    throw new ApiError("Failed to create template", 500);
+    return next(new ApiError("Failed to create template", 500));
   }
 });
 
 // @desc    Update template
 // @route   PUT /api/templates/:id
 // @access  Private (Admin only)
-export const updateTemplate = asyncHandler(async (req, res) => {
+export const updateTemplate = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const { name, description } = req.body;
 
@@ -119,7 +119,7 @@ export const updateTemplate = asyncHandler(async (req, res) => {
     });
 
     if (!existingTemplate) {
-      throw new ApiError("Template not found", 404);
+      return next(new ApiError("Template not found", 404));
     }
 
     // Prepare update data
@@ -154,14 +154,14 @@ export const updateTemplate = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Update template error:", error);
-    throw new ApiError("Failed to update template", 500);
+    return next(new ApiError("Failed to update template", 500));
   }
 });
 
 // @desc    Delete template
 // @route   DELETE /api/templates/:id
 // @access  Private (Admin only)
-export const deleteTemplate = asyncHandler(async (req, res) => {
+export const deleteTemplate = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
   try {
@@ -171,7 +171,7 @@ export const deleteTemplate = asyncHandler(async (req, res) => {
     });
 
     if (!template) {
-      throw new ApiError("Template not found", 404);
+      return next(new ApiError("Template not found", 404));
     }
 
     // Delete file from Cloudinary
@@ -195,14 +195,14 @@ export const deleteTemplate = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Delete template error:", error);
-    throw new ApiError("Failed to delete template", 500);
+    return next(new ApiError("Failed to delete template", 500));
   }
 });
 
 // @desc    Get template statistics
 // @route   GET /api/templates/stats
 // @access  Private (Admin only)
-export const getTemplateStats = asyncHandler(async (req, res) => {
+export const getTemplateStats = asyncHandler(async (req, res, next) => {
   try {
     const [totalTemplates, recentTemplates] = await Promise.all([
       // Total number of templates
@@ -234,6 +234,6 @@ export const getTemplateStats = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Get template stats error:", error);
-    throw new ApiError("Failed to fetch template statistics", 500);
+    return next(new ApiError("Failed to fetch template statistics", 500));
   }
 });
