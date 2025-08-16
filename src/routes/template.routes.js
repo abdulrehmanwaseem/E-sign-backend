@@ -14,10 +14,10 @@ export const templateRouter = express.Router();
 
 // Public/Authenticated routes
 templateRouter.get("/", isAuthenticated, getTemplates);
-templateRouter.get("/stats", isAuthenticated, isAdmin, getTemplateStats);
 
 // Admin-only routes
 templateRouter.post("/", isAuthenticated, isAdmin, singleFile, createTemplate);
+templateRouter.get("/stats", isAuthenticated, isAdmin, getTemplateStats);
 templateRouter.put(
   "/:id",
   isAuthenticated,
