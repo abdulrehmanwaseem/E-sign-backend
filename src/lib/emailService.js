@@ -284,8 +284,10 @@ const createSigningInvitationTemplate = ({
                 Hello ${recipientName}, please review the document details below and proceed to sign when ready.
             </p>
             
-            <a href="${signingUrl}" class="cta-button">Review & Sign Document</a>
-            
+            <a href="${signingUrl}" 
+                style="display: block; width: 280px; margin: 0 auto 40px; padding: 16px 24px; background-color: #4285f4; color: #ffffff !important; text-decoration: none !important; border-radius: 8px; text-align: center; font-size: 16px; font-weight: 600;">
+                Review & Sign Document
+            </a>            
             <div class="document-details">
                 <div class="detail-row">
                     <span class="detail-label">Sent by:&nbsp;</span>
