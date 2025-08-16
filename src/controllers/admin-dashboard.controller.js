@@ -229,40 +229,185 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
 });
 
 // BLOGS
+// blogController.js
 export const getBlogs = asyncHandler(async (req, res) => {
   const blogs = await prisma.blog.findMany({
     select: {
       id: true,
       title: true,
-      description: true,
+      slug: true,
+      content: true,
+      metaTitle: true,
+      metaDescription: true,
+      canonicalUrl: true,
       image: true,
       createdAt: true,
+      updatedAt: true,
     },
     orderBy: { createdAt: "desc" },
   });
+
   res.json({ success: true, data: blogs });
 });
 
-export const createBlog = asyncHandler(async (req, res) => {
-  const { title, description, image } = req.body;
-  const blog = await prisma.blog.create({
-    data: { title, description, image },
+export const getBlogById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const blog = await prisma.blog.findUnique({
+    where: { id },
   });
+
+  if (!blog) {
+    return res.status(404).json({
+      success: false,
+      message: "Blog not found",
+    });
+  }
+
+  res.json({ success: true, data: blog });
+});
+
+export const createBlog = asyncHandler(async (req, res) => {
+  const {
+    title,
+    slug,
+    content,
+    metaTitle,
+    metaDescription,
+    canonicalUrl,
+    image,
+  } = req.body;
+
+  // Validate required fields
+  if (!title || !content) {
+    return res.status(400).json({
+      success: false,
+      message: "Title and content are required",
+    });
+  }
+
+  // Generate slug if not provided
+  const blogSlug =
+    slug ||
+    title
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, "")
+      .replace(/[\s_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  // Check if slug already exists
+  const existingBlog = await prisma.blog.findUnique({
+    where: { slug: blogSlug },
+  });
+
+  if (existingBlog) {
+    return res.status(400).json({
+      success: false,
+      message: "A blog with this slug already exists",
+    });
+  }
+
+  const blog = await prisma.blog.create({
+    data: {
+      title,
+      slug: blogSlug,
+      content,
+      metaTitle: metaTitle || title,
+      metaDescription,
+      canonicalUrl,
+      image,
+    },
+  });
+
   res.status(201).json({ success: true, data: blog });
 });
 
 export const updateBlog = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, description, image } = req.body;
+  const {
+    title,
+    slug,
+    content,
+    metaTitle,
+    metaDescription,
+    canonicalUrl,
+    image,
+  } = req.body;
+
+  // Check if blog exists
+  const existingBlog = await prisma.blog.findUnique({
+    where: { id },
+  });
+
+  if (!existingBlog) {
+    return res.status(404).json({
+      success: false,
+      message: "Blog not found",
+    });
+  }
+
+  // If slug is being updated, check for conflicts
+  if (slug && slug !== existingBlog.slug) {
+    const slugConflict = await prisma.blog.findUnique({
+      where: { slug },
+    });
+
+    if (slugConflict) {
+      return res.status(400).json({
+        success: false,
+        message: "A blog with this slug already exists",
+      });
+    }
+  }
+
   const blog = await prisma.blog.update({
     where: { id },
-    data: { title, description, image },
+    data: {
+      ...(title && { title }),
+      ...(slug && { slug }),
+      ...(content && { content }),
+      ...(metaTitle && { metaTitle }),
+      ...(metaDescription && { metaDescription }),
+      ...(canonicalUrl && { canonicalUrl }),
+      ...(image && { image }),
+      updatedAt: new Date(),
+    },
   });
+
   res.json({ success: true, data: blog });
 });
 
 export const deleteBlog = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  // Check if blog exists
+  const existingBlog = await prisma.blog.findUnique({
+    where: { id },
+  });
+
+  if (!existingBlog) {
+    return res.status(404).json({
+      success: false,
+      message: "Blog not found",
+    });
+  }
+
   await prisma.blog.delete({ where: { id } });
-  res.json({ success: true, message: "Blog deleted" });
+  res.json({ success: true, message: "Blog deleted successfully" });
+});
+
+export const getBlogBySlug = asyncHandler(async (req, res) => {
+  const { slug } = req.params;
+  const blog = await prisma.blog.findUnique({
+    where: { slug },
+  });
+
+  if (!blog) {
+    return res.status(404).json({
+      success: false,
+      message: "Blog not found",
+    });
+  }
+
+  res.json({ success: true, data: blog });
 });

@@ -32,6 +32,20 @@ model User {
   @@unique([provider, providerId])
 }
 
+model Blog {
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  canonicalUrl    String?  
+  metaTitle       String?  
+  metaDescription String?  
+  image           String?
+  imagePublicId   String?  
+  content         String   
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
 model Template {
   id          String            @id @default(cuid())
   name        String            

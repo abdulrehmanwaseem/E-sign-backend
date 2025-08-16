@@ -5,7 +5,7 @@ import { v4 as uuid } from "uuid";
 
 const uploadFileToCloudinary = async (file) => {
   const ext = file.originalname.split(".").pop().toLowerCase();
-  const resource_type = "raw"; // PDF files are uploaded as raw files
+  const resource_type = ext === "pdf" ? "raw" : "image"; // PDF files are uploaded as raw files
 
   try {
     const result = await cloudinary.uploader.upload(getBase64(file), {
