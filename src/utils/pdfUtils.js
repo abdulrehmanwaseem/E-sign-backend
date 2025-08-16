@@ -636,7 +636,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     // Activity timeline
     activities.forEach((activity, index) => {
-      const activityY = yPos - index * 40; // Increased spacing for more details
+      const activityY = height - 310 - index * 40; // Increased spacing for more details
       const activityTime = new Date(activity.createdAt).toLocaleString(
         "en-US",
         {
