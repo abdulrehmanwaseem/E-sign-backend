@@ -4,12 +4,14 @@ import {
   deleteBlog,
   deleteUser,
   getAllUsers,
+  getBlogBySlug,
   getBlogs,
   getDashboardStats,
   getUser,
   updateBlog,
 } from "../controllers/admin-dashboard.controller.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
+import { singleFile } from "../middlewares/multerMiddleware.js";
 
 export const adminDashboardRouter = express.Router();
 
@@ -22,7 +24,8 @@ adminDashboardRouter.delete("/users/:id", isAuthenticated, deleteUser);
 adminDashboardRouter.get("/stats", isAuthenticated, getDashboardStats);
 
 // Blog Management
-adminDashboardRouter.get("/blogs", isAuthenticated, getBlogs);
-adminDashboardRouter.post("/blogs", isAuthenticated, createBlog);
-adminDashboardRouter.put("/blogs/:id", isAuthenticated, updateBlog);
+adminDashboardRouter.get("/blogs", getBlogs);
+adminDashboardRouter.get("/blogs/:slug", isAuthenticated, getBlogBySlug);
+adminDashboardRouter.post("/blogs", isAuthenticated, singleFile, createBlog);
+adminDashboardRouter.put("/blogs/:id", isAuthenticated, singleFile, updateBlog);
 adminDashboardRouter.delete("/blogs/:id", isAuthenticated, deleteBlog);

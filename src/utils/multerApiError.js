@@ -2,8 +2,10 @@ import multer from "multer";
 import { ApiError } from "./ApiError.js";
 
 const handleMulterError = (err, next, maxFiles) => {
+  console.log("hELLO", err);
+
   if (err instanceof multer.MulterError) {
-    if (err.field !== "file" && err.field !== "files") {
+    if (err.field !== "file" && err.field !== "image") {
       // Fixed comparison
       return next(
         new ApiError(`Invalid file field, please check the file field`, 400)

@@ -146,7 +146,7 @@ export const getAllUsers = asyncHandler(async (req, res, next) => {
   }
 });
 
-export const getUser = asyncHandler(async (req, res) => {
+export const getUser = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
   const user = await prisma.user.findUnique({
@@ -168,7 +168,7 @@ export const getUser = asyncHandler(async (req, res) => {
     },
   });
   if (!user) {
-    throw new ApiError(404, "User not found");
+    return next(new ApiError(404, "User not found"));
   }
   res.json({ success: true, data: user });
 });
@@ -227,9 +227,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     },
   });
 });
-
 // BLOGS
-// blogController.js
 export const getBlogs = asyncHandler(async (req, res) => {
   const blogs = await prisma.blog.findMany({
     select: {
@@ -250,44 +248,21 @@ export const getBlogs = asyncHandler(async (req, res) => {
   res.json({ success: true, data: blogs });
 });
 
-export const getBlogById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const blog = await prisma.blog.findUnique({
-    where: { id },
-  });
-
-  if (!blog) {
-    return res.status(404).json({
-      success: false,
-      message: "Blog not found",
-    });
-  }
-
-  res.json({ success: true, data: blog });
-});
-
-export const createBlog = asyncHandler(async (req, res) => {
-  const {
-    title,
-    slug,
-    content,
-    metaTitle,
-    metaDescription,
-    canonicalUrl,
-    image,
-  } = req.body;
+export const createBlog = asyncHandler(async (req, res, next) => {
+  const { title, slug, content, metaTitle, metaDescription, canonicalUrl } =
+    req.body;
 
   // Validate required fields
-  if (!title || !content) {
-    return res.status(400).json({
-      success: false,
-      message: "Title and content are required",
-    });
+  if (!title?.trim() || !content?.trim()) {
+    return next(new ApiError(400, "Title and content are required"));
+  }
+  if (!req.file) {
+    return next(new ApiError(400, "Image file is required"));
   }
 
   // Generate slug if not provided
   const blogSlug =
-    slug ||
+    slug?.trim() ||
     title
       .toLowerCase()
       .trim()
@@ -301,38 +276,40 @@ export const createBlog = asyncHandler(async (req, res) => {
   });
 
   if (existingBlog) {
-    return res.status(400).json({
-      success: false,
-      message: "A blog with this slug already exists",
-    });
+    return next(new ApiError(400, "A blog with this slug already exists"));
   }
 
-  const blog = await prisma.blog.create({
-    data: {
-      title,
-      slug: blogSlug,
-      content,
-      metaTitle: metaTitle || title,
-      metaDescription,
-      canonicalUrl,
-      image,
-    },
-  });
+  try {
+    const uploadResult = await uploadFileToCloudinary(req.file);
 
-  res.status(201).json({ success: true, data: blog });
+    if (!uploadResult?.url) {
+      return next(new ApiError(500, "Failed to upload image"));
+    }
+
+    const blog = await prisma.blog.create({
+      data: {
+        title: title.trim(),
+        slug: blogSlug,
+        content: content.trim(),
+        metaTitle: metaTitle?.trim() || title.trim(),
+        metaDescription: metaDescription?.trim(),
+        canonicalUrl: canonicalUrl?.trim(),
+        image: uploadResult.url,
+        imagePublicId: uploadResult.public_id,
+      },
+    });
+
+    res.status(201).json({ success: true, data: blog });
+  } catch (error) {
+    console.error("Error creating blog:", error);
+    return next(new ApiError(500, "Failed to create blog"));
+  }
 });
 
-export const updateBlog = asyncHandler(async (req, res) => {
+export const updateBlog = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const {
-    title,
-    slug,
-    content,
-    metaTitle,
-    metaDescription,
-    canonicalUrl,
-    image,
-  } = req.body;
+  const { title, slug, content, metaTitle, metaDescription, canonicalUrl } =
+    req.body;
 
   // Check if blog exists
   const existingBlog = await prisma.blog.findUnique({
@@ -340,44 +317,82 @@ export const updateBlog = asyncHandler(async (req, res) => {
   });
 
   if (!existingBlog) {
-    return res.status(404).json({
-      success: false,
-      message: "Blog not found",
-    });
+    return next(new ApiError(404, "Blog not found"));
   }
 
   // If slug is being updated, check for conflicts
-  if (slug && slug !== existingBlog.slug) {
+  if (slug && slug.trim() !== existingBlog.slug) {
     const slugConflict = await prisma.blog.findUnique({
-      where: { slug },
+      where: { slug: slug.trim() },
     });
 
     if (slugConflict) {
-      return res.status(400).json({
-        success: false,
-        message: "A blog with this slug already exists",
-      });
+      return next(new ApiError(400, "A blog with this slug already exists"));
     }
   }
 
-  const blog = await prisma.blog.update({
-    where: { id },
-    data: {
-      ...(title && { title }),
-      ...(slug && { slug }),
-      ...(content && { content }),
-      ...(metaTitle && { metaTitle }),
-      ...(metaDescription && { metaDescription }),
-      ...(canonicalUrl && { canonicalUrl }),
-      ...(image && { image }),
-      updatedAt: new Date(),
-    },
-  });
+  let imageUrl = existingBlog.image;
+  let imagePublicId = existingBlog.imagePublicId;
 
-  res.json({ success: true, data: blog });
+  // Handle image upload if new file provided
+  if (req.file) {
+    try {
+      const uploadResult = await uploadFileToCloudinary(req.file);
+
+      if (!uploadResult?.url) {
+        return next(new ApiError(500, "Failed to upload new image"));
+      }
+
+      // Delete old image from Cloudinary
+      if (existingBlog.imagePublicId) {
+        try {
+          await deleteFileFromCloudinary(existingBlog.imagePublicId, "image");
+        } catch (err) {
+          console.error(
+            "Failed to delete old image from Cloudinary:",
+            err.message
+          );
+          // Continue with update even if old image deletion fails
+        }
+      }
+
+      imageUrl = uploadResult.url;
+      imagePublicId = uploadResult.public_id;
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      return next(new ApiError(500, "Failed to upload image"));
+    }
+  }
+
+  const updateData = {
+    image: imageUrl,
+    imagePublicId,
+    updatedAt: new Date(),
+  };
+
+  // Only update fields that are provided and not empty
+  if (title?.trim()) updateData.title = title.trim();
+  if (slug?.trim()) updateData.slug = slug.trim();
+  if (content?.trim()) updateData.content = content.trim();
+  if (metaTitle?.trim()) updateData.metaTitle = metaTitle.trim();
+  if (metaDescription?.trim())
+    updateData.metaDescription = metaDescription.trim();
+  if (canonicalUrl?.trim()) updateData.canonicalUrl = canonicalUrl.trim();
+
+  try {
+    const blog = await prisma.blog.update({
+      where: { id },
+      data: updateData,
+    });
+
+    res.json({ success: true, data: blog });
+  } catch (error) {
+    console.error("Error updating blog:", error);
+    return next(new ApiError(500, "Failed to update blog"));
+  }
 });
 
-export const deleteBlog = asyncHandler(async (req, res) => {
+export const deleteBlog = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
   // Check if blog exists
@@ -386,27 +401,36 @@ export const deleteBlog = asyncHandler(async (req, res) => {
   });
 
   if (!existingBlog) {
-    return res.status(404).json({
-      success: false,
-      message: "Blog not found",
-    });
+    return next(new ApiError(404, "Blog not found"));
   }
 
-  await prisma.blog.delete({ where: { id } });
-  res.json({ success: true, message: "Blog deleted successfully" });
+  try {
+    // Delete image from Cloudinary if present
+    if (existingBlog.imagePublicId) {
+      try {
+        await deleteFileFromCloudinary(existingBlog.imagePublicId, "image");
+      } catch (err) {
+        console.error("Failed to delete image from Cloudinary:", err.message);
+        // Continue with deletion even if image deletion fails
+      }
+    }
+
+    await prisma.blog.delete({ where: { id } });
+    res.json({ success: true, message: "Blog deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting blog:", error);
+    return next(new ApiError(500, "Failed to delete blog"));
+  }
 });
 
-export const getBlogBySlug = asyncHandler(async (req, res) => {
+export const getBlogBySlug = asyncHandler(async (req, res, next) => {
   const { slug } = req.params;
   const blog = await prisma.blog.findUnique({
     where: { slug },
   });
 
   if (!blog) {
-    return res.status(404).json({
-      success: false,
-      message: "Blog not found",
-    });
+    return next(new ApiError(404, "Blog not found"));
   }
 
   res.json({ success: true, data: blog });
