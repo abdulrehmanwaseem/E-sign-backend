@@ -16,6 +16,7 @@ const handleOAuthCallback = (req, res, provider) => {
     lastName: req.user.lastName,
     avatar: req.user.avatar,
     provider: req.user.provider,
+    device: "DESKTOP",
   };
 
   const token = generateJwtToken(userData);

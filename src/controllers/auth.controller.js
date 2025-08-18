@@ -9,7 +9,7 @@ import {
   validatePhoneNumber,
 } from "../lib/smsService.js";
 import { ApiError } from "../utils/ApiError.js";
-import { generateOTP } from "../utils/helpers.js";
+import { extractNameFromEmail, generateOTP } from "../utils/helpers.js";
 import { generateJwtToken } from "../utils/jwtUtils.js";
 import {
   getClientIp,
@@ -18,7 +18,7 @@ import {
 } from "../utils/userInfo.js";
 
 const signup = TryCatch(async (req, res, next) => {
-  const { email, password, device } = req.body;
+  const { email, password } = req.body;
 
   const userAlreadyExists = await prisma.user.findUnique({ where: { email } });
   if (userAlreadyExists) {
@@ -33,14 +33,19 @@ const signup = TryCatch(async (req, res, next) => {
   const ip = getClientIp(req);
   const location = getGeoLocation(ip);
   const deviceInfo = getDeviceInfo(req);
-  console.log("hellO", location, ip);
+
   const hashedPassword = await bcrypt.hash(password, 8);
   const otp = generateOTP();
   const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
+  const avatarUrl = `https://avatar.iran.liara.run/username?username=${extractNameFromEmail(
+    email
+  )}`;
+
   const createdUser = await prisma.user.create({
     data: {
       email,
+      avatar: avatarUrl,
       password: hashedPassword,
       provider: "credentials",
       otp,
@@ -105,22 +110,24 @@ const login = TryCatch(async (req, res, next) => {
   const ip = getClientIp(req);
   const location = ip ? getGeoLocation(ip) : null;
   const device = getDeviceInfo(req);
-  console.log("hellO", location, ip, req);
 
   // 🔹 Store device + location in DB
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      device: device ? JSON.stringify(device) : user.device, // store as JSON string or JSON type if supported
+      device: device ? JSON.stringify(device) : user.device,
       locations: location
         ? {
-            create: {
-              ip: location.ip,
-              city: location.city,
-              region: location.region,
-              country: location.country,
-              latitude: location.latitude,
-              longitude: location.longitude,
+            update: {
+              where: { userId: user.id },
+              data: {
+                ip: location.ip,
+                city: location.city,
+                region: location.region,
+                country: location.country,
+                latitude: location.latitude,
+                longitude: location.longitude,
+              },
             },
           }
         : undefined,

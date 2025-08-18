@@ -212,20 +212,74 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     },
   });
 
-  // You might want to add more sophisticated queries for earnings based on date range
-  // const totalEarned = await prisma.subscription.aggregate({
-  //   where: dateFilter,
-  //   _sum: { amount: true }
-  // });
+  const usersWithDevices = await prisma.user.findMany({
+    where: dateFilter,
+    select: { device: true },
+  });
+
+  let androidCount = 0;
+  let iosCount = 0;
+  let totalDevices = 0;
+
+  usersWithDevices.forEach((user) => {
+    if (!user.device) return;
+
+    try {
+      const parsed = JSON.parse(user.device);
+      const { browser, os } = parsed;
+
+      // Chrome + Windows → Android
+      if (browser === "Chrome" || os === "Windows") {
+        androidCount++;
+      }
+
+      // Safari + Mac → iOS
+      else if (browser === "Safari" || os === "Mac") {
+        iosCount++;
+      }
+
+      totalDevices++;
+    } catch (err) {
+      console.error("Invalid device JSON:", user.device);
+    }
+  });
+
+  // Get user locations for map markers
+  const userLocations = await prisma.userLocation.findMany({
+    where: {
+      latitude: { not: null },
+      longitude: { not: null },
+      user: dateFilter.createdAt
+        ? {
+            createdAt: dateFilter.createdAt,
+          }
+        : undefined,
+    },
+    select: {
+      id: true,
+      latitude: true,
+      longitude: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 100,
+  });
 
   res.json({
     success: true,
     data: {
       totalUsers,
-      subscriptions: 0, // Fixed typo from "subcriptions"
+      subscriptions: 0,
       totalEarned: 0,
       totalDocuments,
       totalDocumentsSigned,
+      totalDevices,
+      devices: {
+        android: androidCount,
+        ios: iosCount,
+      },
+      userLocations,
     },
   });
 });
