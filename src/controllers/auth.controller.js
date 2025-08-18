@@ -1,31 +1,26 @@
-// Telnyx webhook handler (basic example)
-export const telnyxWebhookHandler = (req, res) => {
-  // Telnyx sends events as JSON in req.body
-  const event = req.body;
-  console.log("Received Telnyx webhook event:", event);
-  // You can add logic here to handle inbound SMS, delivery status, etc.
-  res.status(200).json({ received: true });
-};
 import bcrypt from "bcryptjs";
 import TryCatch from "express-async-handler";
 import { prisma } from "../config/dbConnection.js";
-import { ApiError } from "../utils/ApiError.js";
 import { USER_TOKEN, cookieOptions } from "../constants/options.js";
-import { generateJwtToken } from "../utils/jwtUtils.js";
 import { sendOTPEmail } from "../lib/emailService.js";
 import {
-  sendPhoneOTP,
   formatPhoneNumber,
+  sendPhoneOTP,
   validatePhoneNumber,
 } from "../lib/smsService.js";
+import { ApiError } from "../utils/ApiError.js";
 import { generateOTP } from "../utils/helpers.js";
+import { generateJwtToken } from "../utils/jwtUtils.js";
+import {
+  getClientIp,
+  getDeviceInfo,
+  getGeoLocation,
+} from "../utils/userInfo.js";
 
 const signup = TryCatch(async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, device } = req.body;
 
-  const userAlreadyExists = await prisma.user.findUnique({
-    where: { email },
-  });
+  const userAlreadyExists = await prisma.user.findUnique({ where: { email } });
   if (userAlreadyExists) {
     return next(
       new ApiError(
@@ -34,9 +29,14 @@ const signup = TryCatch(async (req, res, next) => {
       )
     );
   }
+
+  const ip = getClientIp(req);
+  const location = getGeoLocation(ip);
+  const deviceInfo = getDeviceInfo(req);
+  console.log("hellO", location, ip);
   const hashedPassword = await bcrypt.hash(password, 8);
   const otp = generateOTP();
-  const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
 
   const createdUser = await prisma.user.create({
     data: {
@@ -45,6 +45,19 @@ const signup = TryCatch(async (req, res, next) => {
       provider: "credentials",
       otp,
       otpExpires,
+      device: deviceInfo ? JSON.stringify(deviceInfo) : null,
+      locations: location
+        ? {
+            create: {
+              ip: location.ip,
+              city: location.city,
+              region: location.region,
+              country: location.country,
+              latitude: location.latitude,
+              longitude: location.longitude,
+            },
+          }
+        : undefined,
     },
     select: {
       id: true,
@@ -57,11 +70,6 @@ const signup = TryCatch(async (req, res, next) => {
     },
   });
 
-  if (!createdUser) {
-    return next(new ApiError("Something went wrong while creating user", 500));
-  }
-
-  // Send OTP email
   try {
     await sendOTPEmail(email, otp);
   } catch (error) {
@@ -78,26 +86,48 @@ const signup = TryCatch(async (req, res, next) => {
 
 const login = TryCatch(async (req, res, next) => {
   const { email, password } = req.body;
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
-  if (!user) {
-    return next(new ApiError("User Does Not Exists, Try another Email", 400));
-  }
 
-  if (!user.password) {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user)
+    return next(new ApiError("User Does Not Exist, Try another Email", 400));
+  if (!user.password)
     return next(new ApiError("Please login with your OAuth provider", 400));
-  }
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
-  if (!isPasswordValid) {
+  if (!isPasswordValid)
     return next(new ApiError("Invalid email or password", 400));
-  }
 
   if (!user.isEmailVerified) {
     return next(new ApiError("Please verify your email first", 400));
   }
 
+  // 🔹 Gather client environment details
+  const ip = getClientIp(req);
+  const location = ip ? getGeoLocation(ip) : null;
+  const device = getDeviceInfo(req);
+  console.log("hellO", location, ip, req);
+
+  // 🔹 Store device + location in DB
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      device: device ? JSON.stringify(device) : user.device, // store as JSON string or JSON type if supported
+      locations: location
+        ? {
+            create: {
+              ip: location.ip,
+              city: location.city,
+              region: location.region,
+              country: location.country,
+              latitude: location.latitude,
+              longitude: location.longitude,
+            },
+          }
+        : undefined,
+    },
+  });
+
+  // 🔹 Return logged-in user
   const loggedInUser = await prisma.user.findUnique({
     where: { id: user.id },
     select: {
@@ -109,9 +139,6 @@ const login = TryCatch(async (req, res, next) => {
       provider: true,
     },
   });
-  if (!loggedInUser) {
-    return next(new ApiError("Something went wrong while logging in", 500));
-  }
 
   const token = generateJwtToken(loggedInUser);
 
@@ -121,7 +148,6 @@ const login = TryCatch(async (req, res, next) => {
     message: "Logged In Successfully",
   });
 });
-
 const verifyEmail = TryCatch(async (req, res, next) => {
   const { email, otp } = req.body;
 
@@ -392,13 +418,21 @@ const resendPhoneOTP = TryCatch(async (req, res, next) => {
 });
 
 export {
-  signup,
+  getMyProfile,
   login,
   logout,
-  getMyProfile,
-  verifyEmail,
   resendOTP,
-  sendPhoneVerification,
-  verifyPhoneOTP,
   resendPhoneOTP,
+  sendPhoneVerification,
+  signup,
+  verifyEmail,
+  verifyPhoneOTP,
+};
+
+// Telnyx webhook handler (basic example)
+export const telnyxWebhookHandler = (req, res) => {
+  const event = req.body;
+  console.log("Received Telnyx webhook event:", event);
+
+  res.status(200).json({ received: true });
 };

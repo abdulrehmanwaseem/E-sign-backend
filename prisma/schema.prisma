@@ -26,10 +26,25 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   role          UserRole @default(USER)
+  device        String  
 
   documents       Document[]
+  locations       UserLocation[]
 
   @@unique([provider, providerId])
+}
+
+model UserLocation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  ip        String?
+  city      String?
+  region    String?
+  country   String?
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
 }
 
 model Blog {
