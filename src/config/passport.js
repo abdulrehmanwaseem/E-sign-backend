@@ -47,7 +47,6 @@ passport.use(
               provider: "google",
               providerId: profile.id,
               isEmailVerified: true,
-              device: "DESKTOP",
             },
           });
         }

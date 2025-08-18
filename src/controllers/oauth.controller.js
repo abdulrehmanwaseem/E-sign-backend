@@ -1,13 +1,54 @@
 import TryCatch from "express-async-handler";
 import { USER_TOKEN, cookieOptions } from "../constants/options.js";
 import { generateJwtToken } from "../utils/jwtUtils.js";
+import {
+  getClientIp,
+  getDeviceInfo,
+  getGeoLocation,
+} from "../utils/userInfo.js";
 
 // Utility function for OAuth callback response
-const handleOAuthCallback = (req, res, provider) => {
+const handleOAuthCallback = async (req, res, provider) => {
   if (!req.user) {
     const redirectUrl = `${process.env.CLIENT_URL}/dashboard?isError=true&provider=${provider}`;
     return res.redirect(redirectUrl);
   }
+
+  // 🔹 Gather environment details
+  const ip = getClientIp(req);
+  const location = ip ? getGeoLocation(ip) : null;
+  const device = getDeviceInfo(req);
+
+  // 🔹 Save device + location in DB
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: {
+      device: device ? JSON.stringify(device) : req.user.device,
+      locations: location
+        ? {
+            upsert: {
+              create: {
+                ip: location.ip,
+                city: location.city,
+                region: location.region,
+                country: location.country,
+                latitude: location.latitude,
+                longitude: location.longitude,
+              },
+              update: {
+                ip: location.ip,
+                city: location.city,
+                region: location.region,
+                country: location.country,
+                latitude: location.latitude,
+                longitude: location.longitude,
+              },
+              where: { userId: req.user.id },
+            },
+          }
+        : undefined,
+    },
+  });
 
   const userData = {
     id: req.user.id,
@@ -16,7 +57,6 @@ const handleOAuthCallback = (req, res, provider) => {
     lastName: req.user.lastName,
     avatar: req.user.avatar,
     provider: req.user.provider,
-    device: "DESKTOP",
   };
 
   const token = generateJwtToken(userData);

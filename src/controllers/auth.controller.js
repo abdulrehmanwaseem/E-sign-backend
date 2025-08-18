@@ -155,6 +155,7 @@ const login = TryCatch(async (req, res, next) => {
     message: "Logged In Successfully",
   });
 });
+
 const verifyEmail = TryCatch(async (req, res, next) => {
   const { email, otp } = req.body;
 

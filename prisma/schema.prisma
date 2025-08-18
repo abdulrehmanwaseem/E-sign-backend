@@ -26,7 +26,7 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   role          UserRole @default(USER)
-  device        String   // JSON.stringify
+  device        String?   // JSON.stringify
 
   documents       Document[]
   locations       UserLocation[]
