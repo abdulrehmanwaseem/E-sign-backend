@@ -6,6 +6,7 @@ import {
   getDeviceInfo,
   getGeoLocation,
 } from "../utils/userInfo.js";
+import { prisma } from "../config/dbConnection.js";
 
 // Utility function for OAuth callback response
 const handleOAuthCallback = async (req, res, provider) => {
