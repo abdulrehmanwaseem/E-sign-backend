@@ -194,4 +194,3 @@ enum ActivityAction {
   CANCELLED
   DOWNLOADED
 }
-
