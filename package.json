@@ -5,7 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "SET NODE_ENV=PRODUCTION & node server.js",
+    "start": "node server.js",
     "dev": "SET NODE_ENV=DEVELOPMENT & nodemon server.js",
     "build": "npx prisma generate",
     "postinstall": "npx prisma generate"

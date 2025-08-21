@@ -22,6 +22,7 @@ import { oauthRouter } from "./src/routes/oauth.routes.js";
 import { documentRouter } from "./src/routes/document.routes.js";
 import { dashboardRouter } from "./src/routes/dashboard.routes.js";
 import { templateRouter } from "./src/routes/template.routes.js";
+import paymentRoutes from "./src/routes/payment.routes.js";
 import { adminDashboardRouter } from "./src/routes/admin-dashboard.routes.js";
 
 //* Setup:
@@ -49,5 +50,6 @@ app.use("/api/v1/documents", documentRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
 app.use("/api/v1/admin-dashboard", adminDashboardRouter);
 app.use("/api/v1/templates", templateRouter);
+app.use("/api/v1/payment", paymentRoutes);
 
 app.use(errorMiddleware);
