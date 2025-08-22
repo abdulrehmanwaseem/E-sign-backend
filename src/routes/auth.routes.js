@@ -22,6 +22,7 @@ import {
   verifyPhoneOTPValidator,
 } from "../lib/validators.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
+import { sendPhoneOTP } from "../lib/smsService.js";
 
 export const authRouter = Router();
 
@@ -57,3 +58,14 @@ authRouter.post("/resend-phone-otp", isAuthenticated, resendPhoneOTP);
 
 // Protected Routes:
 authRouter.get("/me", isAuthenticated, getMyProfile);
+
+// Test endpoint
+authRouter.post("/test-sms", async (req, res) => {
+  const { phone } = req.body;
+  try {
+    const result = await sendPhoneOTP(phone, "123456");
+    res.json({ success: true, messageId: result.data?.id });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});

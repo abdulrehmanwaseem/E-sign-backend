@@ -425,6 +425,14 @@ const resendPhoneOTP = TryCatch(async (req, res, next) => {
   });
 });
 
+// Telnyx webhook handler (basic example)
+const telnyxWebhookHandler = (req, res) => {
+  const event = req.body;
+  console.log("Received Telnyx webhook event:", event);
+
+  res.status(200).json({ received: true });
+};
+
 export {
   getMyProfile,
   login,
@@ -435,12 +443,5 @@ export {
   signup,
   verifyEmail,
   verifyPhoneOTP,
-};
-
-// Telnyx webhook handler (basic example)
-export const telnyxWebhookHandler = (req, res) => {
-  const event = req.body;
-  console.log("Received Telnyx webhook event:", event);
-
-  res.status(200).json({ received: true });
+  telnyxWebhookHandler,
 };
