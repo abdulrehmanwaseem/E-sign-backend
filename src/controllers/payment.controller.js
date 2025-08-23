@@ -46,6 +46,9 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
     // Stripe requires the raw body for signature verification
     const sig = req.headers["stripe-signature"];
     console.log(sig);
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      throw new Error("Missing Stripe webhook secret");
+    }
     event = stripe.webhooks.constructEvent(
       req.rawBody,
       sig,
