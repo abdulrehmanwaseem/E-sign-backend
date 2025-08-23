@@ -30,7 +30,7 @@ export const createStripeSession = asyncHandler(async (req, res) => {
           user.firstName || user.lastName
             ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
             : "Not Provided",
-        metadata: { userId: user.id.toString() },
+        metadata: { userId: user.id },
       });
       customerId = customer.id;
 
@@ -49,7 +49,7 @@ export const createStripeSession = asyncHandler(async (req, res) => {
       success_url: `${process.env.CLIENT_URL}/dashboard?payment=success`,
       cancel_url: `${process.env.CLIENT_URL}/dashboard?payment=cancel`,
       metadata: {
-        userId: user.id.toString(),
+        userId: user.id,
         planType: "monthly",
       },
     });
@@ -108,7 +108,13 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
         session.subscription
       );
 
-      console.log("Subscription details:", subscription);
+      console.log(
+        "Subscription details:",
+        subscription,
+        subscription?.metadata,
+        subscription?.days_until_due,
+        subscription?.status
+      );
       await prisma.user.update({
         where: { email },
         data: {
@@ -118,7 +124,9 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
           currentPeriodEnd: thirtyDaysFromNow,
         },
       });
-      console.log(`✅ User ${userId} upgraded to PRO`);
+      console.log(
+        `✅ User ${email} upgraded to PRO until ${thirtyDaysFromNow}`
+      );
     }
 
     // Handle subscription cancellation
