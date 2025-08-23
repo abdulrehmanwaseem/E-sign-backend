@@ -22,7 +22,7 @@ import { oauthRouter } from "./src/routes/oauth.routes.js";
 import { documentRouter } from "./src/routes/document.routes.js";
 import { dashboardRouter } from "./src/routes/dashboard.routes.js";
 import { templateRouter } from "./src/routes/template.routes.js";
-import paymentRoutes from "./src/routes/payment.routes.js";
+import { paymentRoutes } from "./src/routes/payment.routes.js";
 import { adminDashboardRouter } from "./src/routes/admin-dashboard.routes.js";
 
 //* Setup:
@@ -36,13 +36,13 @@ cloudinary.config({
 
 app.use(cors(corsOptions));
 app.use(compression());
+app.use(cookieParser());
 
 // Priority: Payment routes (Stripe webhook) before body parsers
 app.use("/api/v1/payment", paymentRoutes);
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
-app.use(cookieParser());
 
 // Initialize Passport
 app.use(passport.initialize());

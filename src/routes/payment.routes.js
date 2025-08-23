@@ -5,13 +5,11 @@ import {
 } from "../controllers/payment.controller.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
 
-const router = express.Router();
+export const paymentRoutes = express.Router();
 
-router.post("/create-session", isAuthenticated, createStripeSession);
-router.post(
+paymentRoutes.post("/create-session", isAuthenticated, createStripeSession);
+paymentRoutes.post(
   "/webhook",
   express.raw({ type: "application/json" }),
   stripeWebhook
 );
-
-export default router;
