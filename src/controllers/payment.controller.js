@@ -6,7 +6,7 @@ import { prisma } from "../config/dbConnection.js";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // @desc    Create Stripe Checkout session for pro plan
-// @route   POST /api/payment/create-session
+// @route   POST /api/v1/payment/create-session
 // @access  Private
 export const createStripeSession = asyncHandler(async (req, res) => {
   try {
@@ -38,7 +38,7 @@ export const createStripeSession = asyncHandler(async (req, res) => {
 });
 
 // @desc    Stripe webhook to handle payment success
-// @route   POST /api/payment/webhook
+// @route   POST /api/v1/payment/webhook
 // @access  Public
 export const stripeWebhook = asyncHandler(async (req, res) => {
   let event;
