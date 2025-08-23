@@ -21,6 +21,8 @@ export const createStripeSession = asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     let customerId = user.stripeCustomerId;
 
+    console.log("USER: ", user, user?.id);
+
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
@@ -88,7 +90,18 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
     // Handle subscription activation
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      const userId = parseInt(session.metadata.userId);
+
+      const email = session.customer_email || session.customer_details?.email;
+
+      if (!email) {
+        console.error("❌ No email found in session for PRO upgrade.");
+        return res
+          .status(400)
+          .json({ error: "Missing customer email in session" });
+      }
+
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
       // Get subscription details
       const subscription = await stripe.subscriptions.retrieve(
@@ -97,12 +110,12 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
 
       console.log("Subscription details:", subscription);
       await prisma.user.update({
-        where: { id: userId },
+        where: { email },
         data: {
           userType: "PRO",
           stripeCustomerId: session.customer,
           subscriptionStatus: subscription.status || "active",
-          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+          currentPeriodEnd: thirtyDaysFromNow,
         },
       });
       console.log(`✅ User ${userId} upgraded to PRO`);
