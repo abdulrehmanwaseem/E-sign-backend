@@ -95,12 +95,13 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
         session.subscription
       );
 
+      console.log("Subscription details:", subscription);
       await prisma.user.update({
         where: { id: userId },
         data: {
           userType: "PRO",
           stripeCustomerId: session.customer,
-          subscriptionStatus: subscription.status,
+          subscriptionStatus: subscription.status || "active",
           currentPeriodEnd: new Date(subscription.current_period_end * 1000),
         },
       });
