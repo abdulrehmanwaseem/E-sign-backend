@@ -40,12 +40,18 @@ export const createStripeSession = asyncHandler(async (req, res) => {
 // @desc    Stripe webhook to handle payment success
 // @route   POST /api/v1/payment/webhook
 // @access  Public
-export const stripeWebhook = asyncHandler(async (req, res) => {
+
+// Stripe webhook handler (do NOT use asyncHandler)
+export const stripeWebhook = (req, res) => {
   let event;
   try {
-    // Stripe requires the raw body for signature verification
     const sig = req.headers["stripe-signature"];
-    console.log(sig, req.rawBody, req.body);
+    // Stripe requires the raw body as Buffer
+    if (!Buffer.isBuffer(req.body)) {
+      throw new Error(
+        "Webhook payload must be a Buffer. Check express.raw() middleware."
+      );
+    }
     if (!process.env.STRIPE_WEBHOOK_SECRET) {
       throw new Error("Missing Stripe webhook secret");
     }
@@ -58,21 +64,21 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
     console.error("Webhook signature verification failed.", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-  console.log(event);
   // Handle the checkout.session.completed event
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     const email = session.customer_email;
-    try {
-      // Upgrade user to PRO
-      await prisma.user.update({
+    prisma.user
+      .update({
         where: { email },
         data: { userType: "PRO" },
+      })
+      .then(() => {
+        console.log(`User ${email} upgraded to PRO.`);
+      })
+      .catch((err) => {
+        console.error("Failed to upgrade user:", err);
       });
-      console.log(`User ${email} upgraded to PRO.`);
-    } catch (err) {
-      console.error("Failed to upgrade user:", err);
-    }
   }
   res.status(200).json({ received: true });
-});
+};

@@ -36,6 +36,10 @@ cloudinary.config({
 
 app.use(cors(corsOptions));
 app.use(compression());
+
+// Priority: Payment routes (Stripe webhook) before body parsers
+app.use("/api/v1/payment", paymentRoutes);
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(cookieParser());
@@ -43,13 +47,12 @@ app.use(cookieParser());
 // Initialize Passport
 app.use(passport.initialize());
 
-//* Routes:
+//* Other Routes:
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/oauth", oauthRouter);
 app.use("/api/v1/documents", documentRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
 app.use("/api/v1/admin-dashboard", adminDashboardRouter);
 app.use("/api/v1/templates", templateRouter);
-app.use("/api/v1/payment", paymentRoutes);
 
 app.use(errorMiddleware);
