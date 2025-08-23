@@ -28,6 +28,7 @@ const isAuthenticated = async (req, res, next) => {
         phone: true,
         isEmailVerified: true,
         isPhoneVerified: true,
+        userType: true,
       },
     });
     if (!currentUser) {

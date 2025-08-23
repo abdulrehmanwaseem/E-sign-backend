@@ -40,8 +40,6 @@ export const createStripeSession = asyncHandler(async (req, res) => {
 // @desc    Stripe webhook to handle payment success
 // @route   POST /api/v1/payment/webhook
 // @access  Public
-
-// Stripe webhook handler (do NOT use asyncHandler)
 export const stripeWebhook = (req, res) => {
   let event;
   try {

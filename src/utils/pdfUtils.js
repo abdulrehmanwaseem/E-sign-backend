@@ -1,7 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
-import { v4 as uuid } from "uuid";
 import { prisma } from "../config/dbConnection.js";
+import { v4 as uuid } from "uuid";
 import fontkit from "@pdf-lib/fontkit";
 
 /**
@@ -140,7 +140,8 @@ const downloadGoogleFonts = async () => {
  * @param {Array} signatureData - Array of signature field data
  * @returns {String} - URL of the signed PDF uploaded to Cloudinary
  */
-export const createSignedPDF = async (document, signatureData) => {
+// Pass user to restrict retention for Free users
+export const createSignedPDF = async (document, signatureData, user) => {
   try {
     console.log("Starting PDF creation for document:", document.id);
     console.log("Document publicId:", document.publicId);
