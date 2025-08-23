@@ -43,7 +43,7 @@ async function main() {
         provider: "google",
         providerId: "google-oauth-id-123",
         device: JSON.stringify({
-          os: "MacOS",
+          os: "Mac",
           browser: "Safari",
           ip: "192.168.1.20",
         }),
@@ -62,7 +62,7 @@ async function main() {
         provider: "apple",
         providerId: "apple-oauth-id-456",
         device: JSON.stringify({
-          os: "MacOS",
+          os: "Mac",
           browser: "Safari",
           ip: "192.168.1.30",
         }),
@@ -82,8 +82,8 @@ async function main() {
         provider: "credentials",
         providerId: null,
         device: JSON.stringify({
-          os: "Android",
-          browser: "Chrome Mobile",
+          os: "Windows",
+          browser: "Chrome",
           ip: "85.84.162.45",
         }),
       },
@@ -102,7 +102,7 @@ async function main() {
         providerId: "google-oauth-id-789",
         device: JSON.stringify({
           os: "iOS",
-          browser: "Safari Mobile",
+          browser: "Safari",
           ip: "202.214.86.123",
         }),
       },
@@ -121,7 +121,7 @@ async function main() {
         providerId: "facebook-oauth-id-101",
         device: JSON.stringify({
           os: "Windows",
-          browser: "Firefox",
+          browser: "Chrome",
           ip: "203.214.52.88",
         }),
       },
@@ -139,8 +139,8 @@ async function main() {
         provider: "credentials",
         providerId: null,
         device: JSON.stringify({
-          os: "Linux",
-          browser: "Firefox",
+          os: "Mac",
+          browser: "Safari",
           ip: "5.62.61.5",
         }),
       },
@@ -159,7 +159,7 @@ async function main() {
         providerId: "apple-oauth-id-789",
         device: JSON.stringify({
           os: "iOS",
-          browser: "Safari Mobile",
+          browser: "Safari",
           ip: "117.201.45.123",
         }),
       },

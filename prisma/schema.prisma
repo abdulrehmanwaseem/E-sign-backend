@@ -28,9 +28,13 @@ model User {
   role          UserRole @default(USER)
   userType      UserType @default(FREE)
   device        String?   // JSON.stringify
+  stripeCustomerId String? @unique // Stripe customer ID for subscriptions
+
+  subscriptionStatus  String?   // active, canceled, past_due, etc.
+  currentPeriodEnd    DateTime? // When monthly subscription expires
+
   documents       Document[]
   locations       UserLocation[]
-
 
   @@unique([provider, providerId])
 }

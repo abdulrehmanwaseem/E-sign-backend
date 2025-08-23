@@ -3,10 +3,12 @@ import cron from "node-cron";
 import fetch from "node-fetch";
 import { app } from "./app.js";
 import { connectToDB } from "./src/config/dbConnection.js";
+import { deleteExpiredFreeUserDocuments } from "./src/utils/deleteExpiredRetentionDocs.js";
 
 const PORT = process.env.PORT || 5000;
 const BASE_URL = process.env.BASE_URL;
 
+// Ping self every 10 minutes
 cron.schedule("*/10 * * * *", async () => {
   try {
     const res = await fetch(`${BASE_URL}/health`);
@@ -15,6 +17,15 @@ cron.schedule("*/10 * * * *", async () => {
     );
   } catch (err) {
     console.error("Error pinging self:", err);
+  }
+});
+
+// Delete expired documents for FREE users once per day at 3:00 AM
+cron.schedule("0 3 * * *", async () => {
+  try {
+    await deleteExpiredFreeUserDocuments();
+  } catch (err) {
+    console.error("Error deleting expired documents:", err);
   }
 });
 

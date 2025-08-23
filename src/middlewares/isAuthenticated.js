@@ -29,6 +29,7 @@ const isAuthenticated = async (req, res, next) => {
         isEmailVerified: true,
         isPhoneVerified: true,
         userType: true,
+        subscriptionStatus: true,
       },
     });
     if (!currentUser) {

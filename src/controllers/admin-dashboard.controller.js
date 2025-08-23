@@ -89,6 +89,7 @@ export const getAllUsers = asyncHandler(async (req, res, next) => {
           firstName: true,
           lastName: true,
           phone: true,
+          userType: true,
           _count: {
             select: {
               documents: true,
@@ -119,7 +120,6 @@ export const getAllUsers = asyncHandler(async (req, res, next) => {
     const formattedUsers = users.map((user) => ({
       ...user,
       fullName: formatUserName(user),
-      userType: "Free User",
       documentSignedAt: "12:13 AM",
       documentSentCount: user._count.documents,
       // Remove the _count field as we've extracted it
