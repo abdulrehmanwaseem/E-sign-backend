@@ -26,10 +26,11 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   role          UserRole @default(USER)
+  userType      UserType @default(FREE)
   device        String?   // JSON.stringify
-
   documents       Document[]
   locations       UserLocation[]
+
 
   @@unique([provider, providerId])
 }
@@ -165,6 +166,11 @@ model DocumentActivity {
 enum UserRole {
   ADMIN
   USER
+}
+
+enum UserType {
+  FREE
+  PRO
 }
 
 enum DocumentStatus {

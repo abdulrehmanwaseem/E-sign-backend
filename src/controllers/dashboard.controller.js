@@ -61,6 +61,11 @@ export const getDashboardData = asyncHandler(async (req, res) => {
           name: true,
           createdAt: true,
           status: true,
+          _count: {
+            select: {
+              fields: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "desc",
