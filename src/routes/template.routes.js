@@ -4,6 +4,7 @@ import {
   deleteTemplate,
   getTemplates,
   getTemplateStats,
+  pickTemplate,
   updateTemplate,
 } from "../controllers/template.controller.js";
 import isAdmin from "../middlewares/isAdmin.js";
@@ -14,6 +15,7 @@ export const templateRouter = express.Router();
 
 // Public/Authenticated routes
 templateRouter.get("/", isAuthenticated, getTemplates);
+templateRouter.post("/:id/pick", isAuthenticated, pickTemplate);
 
 // Admin-only routes
 templateRouter.post("/", isAuthenticated, isAdmin, singleFile, createTemplate);

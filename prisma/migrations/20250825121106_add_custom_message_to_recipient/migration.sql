@@ -5,7 +5,7 @@ CREATE TYPE "public"."UserRole" AS ENUM ('ADMIN', 'USER');
 CREATE TYPE "public"."UserType" AS ENUM ('FREE', 'PRO');
 
 -- CreateEnum
-CREATE TYPE "public"."DocumentStatus" AS ENUM ('SIGNED', 'PENDING', 'CANCELLED', 'EXPIRED');
+CREATE TYPE "public"."DocumentStatus" AS ENUM ('SIGNED', 'PENDING', 'PARTIAL', 'CANCELLED', 'EXPIRED');
 
 -- CreateEnum
 CREATE TYPE "public"."FieldType" AS ENUM ('SIGNATURE', 'FULLNAME', 'DATE', 'EMAIL', 'TITLE', 'ADDRESS', 'INITIALS', 'TEXT');
@@ -36,6 +36,9 @@ CREATE TABLE "public"."User" (
     "userType" "public"."UserType" NOT NULL DEFAULT 'FREE',
     "device" TEXT,
     "stripeCustomerId" TEXT,
+    "isTemplatePicked" BOOLEAN NOT NULL DEFAULT false,
+    "subscriptionStatus" TEXT,
+    "currentPeriodEnd" TIMESTAMP(3),
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -99,7 +102,6 @@ CREATE TABLE "public"."Document" (
     "signedAt" TIMESTAMP(3),
     "signedPdfUrl" TEXT,
     "createdById" TEXT NOT NULL,
-    "recipientId" TEXT NOT NULL,
     "isLibraryFile" BOOLEAN NOT NULL DEFAULT false,
     "expiresAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -117,6 +119,9 @@ CREATE TABLE "public"."DocumentRecipient" (
     "accessToken" TEXT NOT NULL,
     "signedAt" TIMESTAMP(3),
     "viewedAt" TIMESTAMP(3),
+    "documentId" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "customMessage" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -181,9 +186,6 @@ CREATE INDEX "Document_createdById_idx" ON "public"."Document"("createdById");
 CREATE INDEX "Document_status_idx" ON "public"."Document"("status");
 
 -- CreateIndex
-CREATE INDEX "Document_recipientId_idx" ON "public"."Document"("recipientId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "DocumentRecipient_accessToken_key" ON "public"."DocumentRecipient"("accessToken");
 
 -- CreateIndex
@@ -191,6 +193,9 @@ CREATE INDEX "DocumentRecipient_email_idx" ON "public"."DocumentRecipient"("emai
 
 -- CreateIndex
 CREATE INDEX "DocumentRecipient_accessToken_idx" ON "public"."DocumentRecipient"("accessToken");
+
+-- CreateIndex
+CREATE INDEX "DocumentRecipient_documentId_idx" ON "public"."DocumentRecipient"("documentId");
 
 -- CreateIndex
 CREATE INDEX "SignatureField_documentId_recipientId_idx" ON "public"."SignatureField"("documentId", "recipientId");
@@ -205,7 +210,7 @@ ALTER TABLE "public"."UserLocation" ADD CONSTRAINT "UserLocation_userId_fkey" FO
 ALTER TABLE "public"."Document" ADD CONSTRAINT "Document_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "public"."User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Document" ADD CONSTRAINT "Document_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "public"."DocumentRecipient"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."DocumentRecipient" ADD CONSTRAINT "DocumentRecipient_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "public"."Document"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."SignatureField" ADD CONSTRAINT "SignatureField_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "public"."Document"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -215,3 +220,6 @@ ALTER TABLE "public"."SignatureField" ADD CONSTRAINT "SignatureField_recipientId
 
 -- AddForeignKey
 ALTER TABLE "public"."DocumentActivity" ADD CONSTRAINT "DocumentActivity_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "public"."Document"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."DocumentActivity" ADD CONSTRAINT "DocumentActivity_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "public"."DocumentRecipient"("id") ON DELETE CASCADE ON UPDATE CASCADE;

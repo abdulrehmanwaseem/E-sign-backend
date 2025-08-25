@@ -21,7 +21,7 @@ export const createStripeSession = asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     let customerId = user.stripeCustomerId;
 
-    console.log("USER: ", user, user?.id);
+    console.log("USER: ", user);
 
     if (!customerId) {
       const customer = await stripe.customers.create({
@@ -108,13 +108,6 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
         session.subscription
       );
 
-      console.log(
-        "Subscription details:",
-        subscription,
-        subscription?.metadata,
-        subscription?.days_until_due,
-        subscription?.status
-      );
       await prisma.user.update({
         where: { email },
         data: {

@@ -237,3 +237,53 @@ export const getTemplateStats = asyncHandler(async (req, res, next) => {
     return next(new ApiError("Failed to fetch template statistics", 500));
   }
 });
+
+// @desc    Mark template as picked (Free user can only pick once)
+// @route   POST /api/templates/:id/pick
+// @access  Private
+export const pickTemplate = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id; // assuming auth middleware sets req.user
+  const { id: templateId } = req.params;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return next(new ApiError("User not found", 404));
+    }
+
+    // Check if user is PRO → no restriction
+    if (user.userType === "PRO") {
+      return res.status(200).json({
+        success: true,
+        message: "Pro users have access to all templates",
+      });
+    }
+
+    // Free user → only one allowed
+    if (user.isTemplatePicked) {
+      return next(
+        new ApiError("You have already picked your free template", 403)
+      );
+    }
+
+    // Mark as picked
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isTemplatePicked: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Template picked successfully",
+      data: { templateId },
+    });
+  } catch (error) {
+    console.error("Pick template error:", error);
+    return next(new ApiError("Failed to pick template", 500));
+  }
+});

@@ -30,6 +30,7 @@ const isAuthenticated = async (req, res, next) => {
         isPhoneVerified: true,
         userType: true,
         subscriptionStatus: true,
+        isTemplatePicked: true,
       },
     });
     if (!currentUser) {

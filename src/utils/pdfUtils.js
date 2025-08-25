@@ -409,7 +409,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     // Add the actual audit page with simplified approach
     console.log("📋 Adding actual audit trail page...");
-    const auditPageHeight = Math.max(originalHeight, 850);
+    const auditPageHeight = Math.max(originalHeight, 865);
     const auditPage = pdfDoc.addPage([originalWidth, auditPageHeight]);
     const { width, height } = auditPage.getSize();
     console.log("📋 Added audit page, dimensions:", width, "x", height);
@@ -779,7 +779,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     if (signatureData && signatureData.length > 0) {
       auditPage.drawText("Signature Analysis", {
         x: margin,
-        y: height - 450,
+        y: height - 550,
         size: 16,
         font: helveticaBoldFont,
         color: primaryBlue,
@@ -788,7 +788,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       yPos -= 25;
 
       signatureData.forEach((signature, index) => {
-        const signatureY = height - 480 - index * 30;
+        const signatureY = height - 575 - index * 30;
 
         const signatureType = signature.value.startsWith("data:image/")
           ? "Drawn signature"
@@ -845,9 +845,10 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     }
 
     // Security Section
+    // Security Section
     auditPage.drawText("Security & Verification", {
       x: margin,
-      y: height - 700,
+      y: height - 765, // was -750
       size: 16,
       font: helveticaBoldFont,
       color: primaryBlue,
@@ -862,7 +863,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     ];
 
     securityItems.forEach((item, index) => {
-      const itemY = height - 720 - index * 20;
+      const itemY = height - 780 - index * 20; // was -765
 
       auditPage.drawCircle({
         x: margin + 10,
@@ -892,15 +893,15 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     // Footer
     auditPage.drawLine({
-      start: { x: margin, y: height - 790 },
-      end: { x: width - margin, y: height - 790 },
+      start: { x: margin, y: height - 835 }, // was -820
+      end: { x: width - margin, y: height - 835 }, // was -820
       thickness: 1,
       color: lightGray,
     });
 
     auditPage.drawText("Powered by PenginSign", {
       x: margin,
-      y: height - 810,
+      y: height - 850, // was -835
       size: 10,
       font: helveticaFont,
       color: mediumGray,
@@ -909,7 +910,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     const generateTime = `Generated: ${new Date().toLocaleString()}`;
     auditPage.drawText(generateTime, {
       x: width - margin - helveticaFont.widthOfTextAtSize(generateTime, 10),
-      y: height - 810,
+      y: height - 850, // was -835
       size: 10,
       font: helveticaFont,
       color: mediumGray,

@@ -7,6 +7,7 @@ import {
 } from "../lib/cloudinary.js";
 import {
   sendCompletionNotification,
+  sendDocumentOpenedNotification,
   sendSigningInvitation,
 } from "../lib/emailService.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -127,12 +128,12 @@ export const deleteDocumentFromLibrary = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Create document and send for signing (Combined flow)
+// @desc    Create document and send for signing (Multi-recipient)
 // @route   POST /api/dashboard/documents/send-for-signing
 // @access  Private
 export const createAndSendDocument = asyncHandler(async (req, res) => {
-  const recipient = JSON.parse(req.body.recipient);
-  const signatureFields = JSON.parse(req.body.signatureFields);
+  const recipients = JSON.parse(req.body.recipients); // Array of recipients
+  const signatureFields = JSON.parse(req.body.signatureFields); // Each field has recipientEmail
 
   const {
     name,
@@ -140,58 +141,35 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
     existingFileUrl,
     existingPublicId,
     existingFileName,
+    customRecipientMessage,
   } = req.body;
   const createdById = req.user.id;
 
-  if (!recipient || !signatureFields || signatureFields.length === 0) {
-    throw new ApiError("Recipient and signature fields are required", 400);
+  if (!recipients || recipients.length === 0) {
+    throw new ApiError("Recipients are required", 400);
   }
 
-  if (!name || !fileType) {
-    throw new ApiError("Document name and file type are required", 400);
+  if (!signatureFields || signatureFields.length === 0) {
+    throw new ApiError("Signature fields are required", 400);
   }
 
   try {
+    // Handle file upload (same as before)
     let cloudinaryResult = null;
-
     if (!existingFileUrl) {
       if (!req.file) throw new ApiError("File is required", 400);
-
       cloudinaryResult = await uploadFileToCloudinary(req.file);
     } else {
-      // Use existing uploaded file
       cloudinaryResult = {
         url: existingFileUrl,
         public_id: existingPublicId || null,
-        extension: fileType, // or extract from URL
+        extension: fileType,
       };
     }
 
-    console.log("Cloudinary upload result:", cloudinaryResult); // Debug log
-
-    // Step 2: Create or find recipient
-    let documentRecipient = await prisma.documentRecipient.findFirst({
-      where: {
-        email: recipient.email.toLowerCase(),
-        name: recipient.name,
-      },
-    });
-
-    if (!documentRecipient) {
-      documentRecipient = await prisma.documentRecipient.create({
-        data: {
-          name: recipient.name,
-          email: recipient.email.toLowerCase(),
-          phone: recipient.phone || null,
-          accessToken: crypto.randomUUID(),
-        },
-      });
-    }
-
-    // Step 3: Create document in database
+    // Create document (same as before)
     let document;
     if (existingFileUrl) {
-      // Create a new document, linked to the library source
       document = await prisma.document.create({
         data: {
           name,
@@ -202,15 +180,13 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
           extension: fileType,
           accessToken: crypto.randomUUID(),
           createdById,
-          recipientId: documentRecipient.id,
           status: "PENDING",
           expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
           isLibraryFile: false,
+          customRecipientMessage: customRecipientMessage || null,
         },
-        include: { recipient: true, createdBy: true },
       });
     } else {
-      // Fresh upload that goes into library
       document = await prisma.document.create({
         data: {
           name,
@@ -221,76 +197,120 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
           extension: cloudinaryResult.extension,
           accessToken: crypto.randomUUID(),
           createdById,
-          recipientId: documentRecipient.id,
           status: "PENDING",
           expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
           isLibraryFile: true,
+          customRecipientMessage: customRecipientMessage || null,
         },
-        include: { recipient: true, createdBy: true },
       });
     }
-    // Step 4: Create signature fields
-    const fieldsData = signatureFields.map((field) => ({
-      documentId: document.id,
-      recipientId: documentRecipient.id,
-      fieldId: field.id,
-      fieldType: field.type.toUpperCase(),
-      pageNumber: field.page,
-      xPosition: field.x,
-      yPosition: field.y,
-      width: field.width,
-      height: field.height,
-    }));
+
+    // Create recipients for this document
+    const createdRecipients = await Promise.all(
+      recipients.map(async (recipient) => {
+        return await prisma.documentRecipient.create({
+          data: {
+            documentId: document.id,
+            name: recipient.name,
+            email: recipient.email.toLowerCase(),
+            phone: recipient.phone || null,
+            accessToken: crypto.randomUUID(),
+            status: "PENDING",
+          },
+        });
+      })
+    );
+
+    // Create signature fields with recipient assignment
+    const fieldsData = signatureFields.map((field) => {
+      // Find the recipient for this field
+      const recipient = createdRecipients.find(
+        (r) => r.email === field.recipientEmail.toLowerCase()
+      );
+
+      if (!recipient) {
+        throw new ApiError(
+          `Recipient not found for field: ${field.recipientEmail}`,
+          400
+        );
+      }
+
+      return {
+        documentId: document.id,
+        recipientId: recipient.id,
+        fieldId: field.id,
+        fieldType: field.type.toUpperCase(),
+        pageNumber: field.page,
+        xPosition: field.x,
+        yPosition: field.y,
+        width: field.width,
+        height: field.height,
+      };
+    });
 
     await prisma.signatureField.createMany({
       data: fieldsData,
     });
 
-    // Step 5: Log activities
-    await Promise.all([
-      // Document created activity
-      prisma.documentActivity.create({
-        data: {
-          documentId: document.id,
-          action: "CREATED",
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent"),
-          details: {
-            fileName: existingFileName || req.file?.originalname,
-            fileSize: req.file?.size,
-          },
-        },
-      }),
-      // Document sent activity
-      prisma.documentActivity.create({
-        data: {
-          documentId: document.id,
-          recipientId: documentRecipient.id,
-          action: "SENT",
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent"),
-          details: {
-            recipientEmail: recipient.email,
-            fieldsCount: signatureFields.length,
-          },
-        },
-      }),
-    ]);
+    // Send emails to all recipients (parallel signing)
+    const emailPromises = createdRecipients.map(async (recipient) => {
+      try {
+        await sendSigningInvitation(
+          recipient,
+          document,
+          req.user,
+          customRecipientMessage
+        );
 
-    // Step 6: Send email notification to recipient
-    try {
-      await sendSigningInvitation(documentRecipient, document, req.user);
-      console.log("Signing invitation email sent successfully");
-    } catch (emailError) {
-      console.error("Failed to send email notification:", emailError);
-      // Don't throw error - document creation was successful, email is just a notification
-    }
+        // Log activity for each recipient
+        await prisma.documentActivity.create({
+          data: {
+            documentId: document.id,
+            recipientId: recipient.id,
+            action: "SENT",
+            ipAddress: req.ip,
+            userAgent: req.get("User-Agent"),
+            details: {
+              recipientEmail: recipient.email,
+              totalRecipients: createdRecipients.length,
+            },
+          },
+        });
+      } catch (emailError) {
+        console.error(
+          `Failed to send email to ${recipient.email}:`,
+          emailError
+        );
+      }
+    });
+
+    await Promise.allSettled(emailPromises);
+
+    // Log document creation
+    await prisma.documentActivity.create({
+      data: {
+        documentId: document.id,
+        action: "CREATED",
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+        details: {
+          fileName: existingFileName || req.file?.originalname,
+          recipientCount: createdRecipients.length,
+        },
+      },
+    });
 
     res.status(201).json({
       success: true,
       message: "Document created and sent for signing successfully",
       data: {
-        signingUrl: `${process.env.CLIENT_URL}/signing/${document.accessToken}`,
+        documentId: document.id,
+        recipients: createdRecipients.map((r) => ({
+          name: r.name,
+          email: r.email,
+          status: r.status,
+          signingUrl: `${process.env.CLIENT_URL}/signing/${r.accessToken}`,
+        })),
       },
     });
   } catch (error) {
@@ -299,7 +319,7 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get all documents for user
+// @desc    Get all documents (updated to show recipient info)
 // @route   GET /api/dashboard/documents
 // @access  Private
 export const getDocuments = asyncHandler(async (req, res) => {
@@ -329,11 +349,15 @@ export const getDocuments = asyncHandler(async (req, res) => {
           name: true,
           status: true,
           createdAt: true,
+          signedAt: true,
           signedPdfUrl: true,
-          recipient: {
+          recipients: {
             select: {
+              id: true,
               name: true,
               email: true,
+              status: true,
+              signedAt: true,
             },
           },
           _count: {
@@ -349,10 +373,18 @@ export const getDocuments = asyncHandler(async (req, res) => {
       prisma.document.count({ where }),
     ]);
 
+    // Add helpful info for frontend
+    const enhancedDocuments = documents.map((doc) => ({
+      ...doc,
+      recipientCount: doc.recipients.length,
+      signedCount: doc.recipients.filter((r) => r.status === "SIGNED").length,
+      pendingRecipients: doc.recipients.filter((r) => r.status === "PENDING"),
+    }));
+
     res.status(200).json({
       success: true,
       data: {
-        documents,
+        documents: enhancedDocuments,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(total / take),
@@ -387,17 +419,24 @@ export const getDocumentById = asyncHandler(async (req, res) => {
         status: true,
         createdAt: true,
         signedAt: true,
+        expiresAt: true,
         signedPdfUrl: true,
         filePath: true,
         fileType: true,
-        recipient: {
+        // new schema (multi recipients)
+        recipients: {
           select: {
+            id: true,
             name: true,
             email: true,
+            status: true,
+            viewedAt: true,
+            signedAt: true,
           },
+          orderBy: { createdAt: "asc" },
         },
         fields: {
-          select: { id: true }, // only need length in frontend
+          select: { id: true }, // only need count on FE
         },
       },
     });
@@ -406,12 +445,11 @@ export const getDocumentById = asyncHandler(async (req, res) => {
       throw new ApiError("Document not found", 404);
     }
 
-    // Map DB fieldPath → fileUrl for frontend
     res.status(200).json({
       success: true,
       data: {
         ...document,
-        fileUrl: document.filePath,
+        fileUrl: document.filePath, // map filePath → fileUrl for FE
       },
     });
   } catch (error) {
@@ -420,73 +458,92 @@ export const getDocumentById = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Get document for signing (public access with token)
+// @desc    Get document for signing (works with recipient's access token)
 // @route   GET /api/dashboard/documents/sign/:accessToken
 // @access  Public
 export const getDocumentForSigning = asyncHandler(async (req, res) => {
   const { accessToken } = req.params;
 
   try {
-    // Find document by its own access token
-    const document = await prisma.document.findUnique({
+    // Find recipient by their access token
+    const recipient = await prisma.documentRecipient.findUnique({
       where: { accessToken },
       include: {
-        recipient: true,
+        document: {
+          include: {
+            createdBy: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
         fields: {
           orderBy: [{ pageNumber: "asc" }, { yPosition: "asc" }],
-        },
-        createdBy: {
-          select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
         },
       },
     });
 
-    if (!document) {
+    if (!recipient) {
       throw new ApiError("Document not found or access denied", 404);
     }
+
+    const { document } = recipient;
 
     // Check if document is expired
     if (document.expiresAt && new Date() > document.expiresAt) {
       throw new ApiError("Document has expired", 410);
     }
 
-    // Update viewed status if not already viewed
-    if (!document.recipient.viewedAt) {
+    // Check if this recipient already signed
+    if (recipient.status === "SIGNED") {
+      throw new ApiError("You have already signed this document", 400);
+    }
+
+    // Update viewed status
+    if (!recipient.viewedAt) {
       await prisma.documentRecipient.update({
-        where: { id: document.recipient.id },
+        where: { id: recipient.id },
         data: { viewedAt: new Date() },
       });
 
-      // Log activity
       await prisma.documentActivity.create({
         data: {
           documentId: document.id,
-          recipientId: document.recipient.id,
+          recipientId: recipient.id,
           action: "VIEWED",
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
         },
       });
-    }
 
-    // File URL is already complete for Cloudinary uploads
-    const fileUrl = document.filePath;
+      // 🔔 Send email to sender
+      await sendDocumentOpenedNotification({
+        senderEmail: document.createdBy.email,
+        senderName: `${document.createdBy.firstName || "Not provided"} ${
+          document.createdBy.lastName || ""
+        }`,
+        recipientName: recipient.name,
+        recipientEmail: recipient.email,
+        documentName: document.title,
+        documentId: document.id,
+      });
+    }
 
     res.status(200).json({
       success: true,
       data: {
         document: {
           ...document,
-          fileUrl,
+          fileUrl: document.filePath,
+          fields: recipient.fields, // Only fields for this recipient
         },
         recipient: {
-          id: document.recipient.id,
-          name: document.recipient.name,
-          email: document.recipient.email,
+          id: recipient.id,
+          name: recipient.name,
+          email: recipient.email,
         },
       },
     });
@@ -496,144 +553,292 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Submit signature
-// @route   POST /api/dashboard/documents/sign/:accessToken/submit
-// @access  Public
+// Enhanced submitSignature function with better error handling and notifications
 export const submitSignature = asyncHandler(async (req, res, next) => {
   const { accessToken } = req.params;
   const { signatureData } = req.body;
 
-  console.log("=== Starting signature submission ===");
-  console.log("Access token:", accessToken);
-  console.log("Signature data count:", signatureData?.length);
-
   try {
-    // Find document by its own access token
-    const document = await prisma.document.findUnique({
+    // Find recipient by access token
+    const recipient = await prisma.documentRecipient.findUnique({
       where: { accessToken },
       include: {
-        recipient: true,
-        fields: true,
-        createdBy: true, // Include sender information for email notification
+        document: {
+          include: {
+            createdBy: true,
+            recipients: true,
+          },
+        },
       },
     });
 
-    if (!document) {
+    if (!recipient) {
       throw new ApiError("Document not found or access denied", 404);
     }
 
-    console.log("Document found:", document.id, document.name);
-    console.log("Document fields count:", document.fields.length);
-    console.log("Document publicId:", document.publicId);
+    const { document } = recipient;
 
     // Check if already signed
-    if (document.signedAt) {
-      throw new ApiError("Document has already been signed", 400);
-    }
-
-    // Check if document is expired
-    if (document.expiresAt && new Date() > document.expiresAt) {
-      throw new ApiError("Document has expired", 410);
+    if (recipient.status === "SIGNED") {
+      throw new ApiError("You have already signed this document", 400);
     }
 
     // Update signature fields with values
     const updatePromises = signatureData.map((fieldData) =>
       prisma.signatureField.update({
-        where: {
-          id: fieldData.fieldId,
-        },
-        data: {
-          fieldValue: fieldData.value,
-        },
+        where: { id: fieldData.fieldId },
+        data: { fieldValue: fieldData.value },
       })
     );
-
     await Promise.all(updatePromises);
 
-    // Create signed PDF with embedded signatures
-    let signedPdfUrl = null;
-    console.log("=== Starting PDF creation ===");
-    try {
-      signedPdfUrl = await createSignedPDF(document, signatureData);
-      console.log("=== PDF creation successful ===");
-      console.log("Signed PDF URL:", signedPdfUrl);
-    } catch (pdfError) {
-      console.error("=== PDF creation failed ===");
-      console.error("PDF creation error:", pdfError);
-      // Continue without signed PDF if creation fails
+    // Mark this recipient as signed
+    await prisma.documentRecipient.update({
+      where: { id: recipient.id },
+      data: {
+        status: "SIGNED",
+        signedAt: new Date(),
+      },
+    });
+
+    // Check if all recipients have signed
+    const updatedRecipients = await prisma.documentRecipient.findMany({
+      where: { documentId: document.id },
+    });
+
+    const allSigned = updatedRecipients.every((r) => r.status === "SIGNED");
+    const someSigned = updatedRecipients.some((r) => r.status === "SIGNED");
+
+    let documentStatus = "PENDING";
+    if (allSigned) {
+      documentStatus = "SIGNED";
+    } else if (someSigned) {
+      documentStatus = "PARTIAL";
     }
 
-    // Update document with signing info and status
-    await Promise.all([
-      prisma.document.update({
-        where: { id: document.id },
-        data: {
-          status: "SIGNED",
-          signedAt: new Date(),
-          signedPdfUrl: signedPdfUrl, // Store the signed PDF URL
-        },
-      }),
-    ]);
+    let signedPdfUrl = null;
+    let pdfGenerationError = null;
 
-    // Log activities for signing process
-    await Promise.all([
-      // Log SIGNED activity
-      prisma.documentActivity.create({
-        data: {
-          documentId: document.id,
-          recipientId: document.recipientId,
-          action: "SIGNED",
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent"),
-          details: {
-            fieldsCount: signatureData.length,
-            signedPdfCreated: !!signedPdfUrl,
+    // Create signed PDF if all recipients have signed
+    if (allSigned) {
+      try {
+        console.log(
+          `🔄 All recipients signed, generating PDF for document ${document.id}`
+        );
+
+        // Get all signature data from all recipients
+        const allFields = await prisma.signatureField.findMany({
+          where: { documentId: document.id },
+        });
+
+        const allSignatureData = allFields
+          .filter((field) => field.fieldValue)
+          .map((field) => ({
+            fieldId: field.id,
+            value: field.fieldValue,
+          }));
+
+        // Generate the signed PDF with enhanced error handling
+        signedPdfUrl = await createSignedPDF(
+          { ...document, fields: allFields }, // Include fields in document object
+          allSignatureData,
+          document.createdBy // Pass user for retention limits if needed
+        );
+
+        console.log(`✅ Signed PDF generated successfully: ${signedPdfUrl}`);
+
+        // Validate the generated PDF URL
+        if (!signedPdfUrl || !signedPdfUrl.startsWith("http")) {
+          throw new Error("Invalid signed PDF URL generated");
+        }
+      } catch (pdfError) {
+        console.error("❌ PDF generation failed:", pdfError);
+        pdfGenerationError = pdfError.message;
+
+        // Don't fail the entire signing process, just log it
+        // The document will still be marked as signed but without PDF
+        await prisma.documentActivity.create({
+          data: {
+            documentId: document.id,
+            action: "COMPLETED", // Still completed, just PDF failed
+            ipAddress: req.ip,
+            userAgent: req.get("User-Agent"),
+            details: {
+              pdfGenerationFailed: true,
+              error: pdfError.message,
+              totalRecipients: updatedRecipients.length,
+            },
           },
+        });
+      }
+    }
+
+    // Update document status and signed PDF URL
+    const updatedDocument = await prisma.document.update({
+      where: { id: document.id },
+      data: {
+        status: documentStatus,
+        ...(allSigned && {
+          signedAt: new Date(),
+          ...(signedPdfUrl && { signedPdfUrl }),
+        }),
+      },
+    });
+
+    // Log signing activity
+    await prisma.documentActivity.create({
+      data: {
+        documentId: document.id,
+        recipientId: recipient.id,
+        action: "SIGNED",
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+        details: {
+          recipientEmail: recipient.email,
+          fieldsCount: signatureData.length,
+          documentStatus,
         },
-      }),
-      // Log COMPLETED activity (signing process completed)
-      prisma.documentActivity.create({
+      },
+    });
+
+    // If all signed, log completion and send notifications
+    if (allSigned) {
+      // Log completion activity
+      await prisma.documentActivity.create({
         data: {
           documentId: document.id,
-          recipientId: document.recipientId,
           action: "COMPLETED",
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
           details: {
-            action: "signing_process_completed",
-            signedPdfUrl: signedPdfUrl,
-            completedBy: document.recipient.email,
+            totalRecipients: updatedRecipients.length,
+            signedPdfUrl: signedPdfUrl || null,
+            pdfGenerationSuccess: !!signedPdfUrl,
           },
         },
-      }),
-    ]);
+      });
 
-    // Send completion notification to document sender
-    try {
-      await sendCompletionNotification(
-        document.createdBy,
-        {
-          ...document,
-          signedAt: new Date(),
-        },
-        document.recipient
-      );
-    } catch (emailError) {
-      console.error("Failed to send completion notification:", emailError);
-      // Don't fail the signing process if email fails
+      // Send completion notification (async, don't block response)
+      setImmediate(async () => {
+        try {
+          await sendCompletionNotification(
+            document.createdBy,
+            {
+              ...document,
+              signedAt: new Date(),
+              signedPdfUrl,
+              status: "SIGNED",
+            },
+            updatedRecipients
+          );
+        } catch (emailError) {
+          console.error("Failed to send completion notification:", emailError);
+        }
+      });
     }
 
+    // Return comprehensive response
     res.status(200).json({
       success: true,
       message: "Document signed successfully",
       data: {
         signedAt: new Date(),
-        signedPdfUrl: signedPdfUrl,
+        isComplete: allSigned,
+        documentStatus,
+        signedPdfUrl: allSigned ? signedPdfUrl : null,
+        recipientStatus: updatedRecipients.map((r) => ({
+          email: r.email,
+          name: r.name,
+          status: r.status,
+          signedAt: r.signedAt,
+        })),
+        // Include any PDF generation warnings
+        ...(pdfGenerationError && {
+          warnings: [
+            `PDF generation encountered an issue: ${pdfGenerationError}`,
+          ],
+        }),
       },
     });
   } catch (error) {
     console.error("Submit signature error:", error);
     throw new ApiError("Failed to submit signature", 500);
+  }
+});
+
+// Enhanced function to retry PDF generation for failed documents
+export const retryPdfGeneration = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const createdById = req.user.id;
+
+  try {
+    // Find completed document without signed PDF
+    const document = await prisma.document.findFirst({
+      where: {
+        id,
+        createdById,
+        status: "SIGNED",
+        signedPdfUrl: null, // Only retry if PDF is missing
+      },
+      include: {
+        fields: true,
+        recipients: true,
+      },
+    });
+
+    if (!document) {
+      throw new ApiError("Document not found or PDF already exists", 404);
+    }
+
+    console.log(`🔄 Retrying PDF generation for document ${document.id}`);
+
+    // Get all signature data
+    const allFields = await prisma.signatureField.findMany({
+      where: { documentId: document.id },
+    });
+
+    const allSignatureData = allFields
+      .filter((field) => field.fieldValue)
+      .map((field) => ({
+        fieldId: field.id,
+        value: field.fieldValue,
+      }));
+
+    // Generate the signed PDF
+    const signedPdfUrl = await createSignedPDF(
+      { ...document, fields: allFields },
+      allSignatureData,
+      req.user
+    );
+
+    // Update document with signed PDF URL
+    await prisma.document.update({
+      where: { id: document.id },
+      data: { signedPdfUrl },
+    });
+
+    // Log the retry activity
+    await prisma.documentActivity.create({
+      data: {
+        documentId: document.id,
+        action: "COMPLETED",
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+        details: {
+          pdfGenerationRetry: true,
+          signedPdfUrl,
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "PDF generated successfully",
+      data: { signedPdfUrl },
+    });
+  } catch (error) {
+    console.error("Retry PDF generation error:", error);
+    throw new ApiError("Failed to generate PDF", 500);
   }
 });
 

@@ -8,33 +8,35 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password      String?  // Optional for OAuth users
-  firstName     String?
-  lastName      String?
-  avatar        String?
-  provider      String?  // "google", "apple", "credentials"
-  providerId    String?  // OAuth provider's user ID
-  isEmailVerified Boolean @default(false)
-  phone         String?
-  isPhoneVerified Boolean @default(false)
-  otp           String?
-  otpExpires    DateTime?
-  phoneOtp      String?
-  phoneOtpExpires DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  role          UserRole @default(USER)
-  userType      UserType @default(FREE)
-  device        String?   // JSON.stringify
-  stripeCustomerId String? @unique // Stripe customer ID for subscriptions
+  id               String      @id @default(cuid())
+  email            String      @unique
+  password         String?     // Optional for OAuth users
+  firstName        String?
+  lastName         String?
+  avatar           String?
+  provider         String?     // "google", "apple", "credentials"
+  providerId       String?     // OAuth provider's user ID
+  isEmailVerified  Boolean     @default(false)
+  phone            String?
+  isPhoneVerified  Boolean     @default(false)
+  otp              String?
+  otpExpires       DateTime?
+  phoneOtp         String?
+  phoneOtpExpires  DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  role             UserRole    @default(USER)
+  userType         UserType    @default(FREE)
+  device           String?     // JSON.stringify
+  stripeCustomerId String?     @unique // Stripe customer ID for subscriptions
 
-  subscriptionStatus  String?   // active, canceled, past_due, etc.
-  currentPeriodEnd    DateTime? // When monthly subscription expires
+  isTemplatePicked Boolean @default(false)
 
-  documents       Document[]
-  locations       UserLocation[]
+  subscriptionStatus String?   // active, canceled, past_due, etc.
+  currentPeriodEnd   DateTime? // When monthly subscription expires
+
+  documents Document[]
+  locations UserLocation[]
 
   @@unique([provider, providerId])
 }
@@ -56,112 +58,113 @@ model Blog {
   id              String   @id @default(cuid())
   title           String
   slug            String   @unique
-  canonicalUrl    String?  
-  metaTitle       String?  
-  metaDescription String?  
+  canonicalUrl    String?
+  metaTitle       String?
+  metaDescription String?
   image           String?
-  imagePublicId   String?  
-  content         String   
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  imagePublicId   String?
+  content         String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Template {
-  id          String            @id @default(cuid())
-  name        String            
-  description String?          
-  fileUrl     String           
-  publicId    String       
-      
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  fileUrl     String
+  publicId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Document {
-  id                 String            @id @default(cuid())
-  name               String            
-  fileName           String
-  fileType           String            
-  filePath           String            
-  publicId           String            // Store Cloudinary public_id for deletion
-  extension          String            // File extension (e.g., pdf, docx)
-  accessToken        String            @unique @default(cuid()) // Unique access token per document
-  status             DocumentStatus    @default(PENDING)
-  signedAt           DateTime?         // Track signing at document level
-  signedPdfUrl       String?           // URL of the signed PDF with embedded signatures
-  createdById        String
-  recipientId        String            // Removed @unique to allow multiple docs per recipient
-  isLibraryFile     Boolean  @default(false)
+  id           String            @id @default(cuid())
+  name         String
+  fileName     String
+  fileType     String
+  filePath     String
+  publicId     String
+  extension    String
+  accessToken  String            @unique @default(cuid())
+  status       DocumentStatus    @default(PENDING)
+  signedAt     DateTime?
+  signedPdfUrl String?
+  createdById  String
+  isLibraryFile Boolean          @default(false)
+  expiresAt    DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  customRecipientMessage         String?          
 
-  expiresAt          DateTime?
-
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  
   // Relations
-  createdBy          User              @relation(fields: [createdById], references: [id], onDelete: Cascade)
-  recipient          DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
-  fields             SignatureField[]
-  activities         DocumentActivity[]
+  createdBy   User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  recipients  DocumentRecipient[]
+  fields      SignatureField[]
+  activities  DocumentActivity[]
 
   @@index([createdById])
   @@index([status])
-  @@index([recipientId]) // Add index for better query performance
 }
 
 model DocumentRecipient {
-  id            String           @id @default(cuid())
-  name          String
-  email         String
-  phone         String?
-  accessToken   String           @unique @default(cuid())
-  signedAt      DateTime?
-  viewedAt      DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  
-  // Relations - One recipient can have multiple documents
-  documents     Document[]        
-  fields        SignatureField[]
+  id          String             @id @default(cuid())
+  name        String
+  email       String
+  phone       String?
+  accessToken String             @unique @default(cuid())
+  signedAt    DateTime?
+  viewedAt    DateTime?
+  documentId  String
+  status      String             @default("PENDING") // PENDING, SIGNED
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  // Relations
+  document   Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  fields     SignatureField[]
+  activities DocumentActivity[]
 
   @@index([email])
   @@index([accessToken])
+  @@index([documentId])
 }
 
 model SignatureField {
-  id            String            @id @default(cuid())
-  documentId    String
-  recipientId   String
-  fieldId       String            // Your frontend field ID
-  fieldType     FieldType
-  pageNumber    Int
-  xPosition     Float
-  yPosition     Float
-  width         Float
-  height        Float
-  fieldValue    String?           // Actual signed/filled value
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  
+  id          String           @id @default(cuid())
+  documentId  String
+  recipientId String
+  fieldId     String           // Frontend field ID
+  fieldType   FieldType
+  pageNumber  Int
+  xPosition   Float
+  yPosition   Float
+  width       Float
+  height      Float
+  fieldValue  String?          // Value when signed
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
   // Relations
-  document      Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  recipient     DocumentRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  document  Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  recipient DocumentRecipient  @relation(fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([documentId, recipientId])
 }
 
 model DocumentActivity {
-  id            String         @id @default(cuid())
-  documentId    String
-  recipientId   String?
-  action        ActivityAction
-  ipAddress     String?
-  userAgent     String?
-  details       Json?
-  createdAt     DateTime       @default(now())
-  
+  id          String            @id @default(cuid())
+  documentId  String
+  recipientId String?
+  action      ActivityAction
+  ipAddress   String?
+  userAgent   String?
+  details     Json?
+  createdAt   DateTime          @default(now())
+
   // Relations
-  document      Document       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document   Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  recipient  DocumentRecipient? @relation(fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
 }
@@ -180,6 +183,7 @@ enum UserType {
 enum DocumentStatus {
   SIGNED
   PENDING
+  PARTIAL   // Some recipients signed
   CANCELLED
   EXPIRED
 }
