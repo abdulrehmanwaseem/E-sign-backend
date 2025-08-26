@@ -113,7 +113,7 @@ const downloadGoogleFonts = async () => {
  * @returns {String} - URL of the signed PDF uploaded to Cloudinary
  */
 // Pass user to restrict retention for Free users
-export const createSignedPDF = async (document, signatureData, user) => {
+export const createSignedPDF = async (document, signatureData, documentUrl) => {
   console.log("🚀 createSignedPDF called", signatureData);
   try {
     console.log("Starting PDF creation for document:", document.id);
@@ -131,7 +131,8 @@ export const createSignedPDF = async (document, signatureData, user) => {
 
     // Download the original PDF from Cloudinary
     const originalPdfBuffer = await downloadPdfFromCloudinary(
-      document.publicId
+      document.publicId,
+      documentUrl
     );
     console.log("Original PDF buffer size:", originalPdfBuffer.length);
 
@@ -703,7 +704,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     // Add the actual audit page with simplified approach
     console.log("📋 Adding actual audit trail page...");
-    const auditPageHeight = Math.max(originalHeight, 950);
+    const auditPageHeight = Math.max(originalHeight, 1000);
     const auditPage = pdfDoc.addPage([originalWidth, auditPageHeight]);
     const { width, height } = auditPage.getSize();
     console.log("📋 Added audit page, dimensions:", width, "x", height);
@@ -1073,7 +1074,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     if (signatureData && signatureData.length > 0) {
       auditPage.drawText("Signature Analysis", {
         x: margin,
-        y: height - 615,
+        y: height - 665,
         size: 16,
         font: helveticaBoldFont,
         color: primaryBlue,
@@ -1082,7 +1083,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       yPos -= 25;
 
       signatureData.forEach((signature, index) => {
-        const signatureY = height - 640 - index * 30;
+        const signatureY = height - 690 - index * 30;
 
         const signatureType = signature.value.startsWith("data:image/")
           ? "Drawn signature"
@@ -1139,10 +1140,9 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     }
 
     // Security Section
-    // Security Section
     auditPage.drawText("Security & Verification", {
       x: margin,
-      y: height - 850, // was -750
+      y: height - 900, // was -750
       size: 16,
       font: helveticaBoldFont,
       color: primaryBlue,
@@ -1157,7 +1157,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     ];
 
     securityItems.forEach((item, index) => {
-      const itemY = height - 870 - index * 20; // was -765
+      const itemY = height - 920 - index * 20; // was -765
 
       auditPage.drawCircle({
         x: margin + 10,
@@ -1187,15 +1187,15 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
 
     // Footer
     auditPage.drawLine({
-      start: { x: margin, y: height - 920 }, // was -820
-      end: { x: width - margin, y: height - 920 }, // was -820
+      start: { x: margin, y: height - 975 }, // was -820
+      end: { x: width - margin, y: height - 975 }, // was -820
       thickness: 1,
       color: lightGray,
     });
 
     auditPage.drawText("Powered by PenginSign", {
       x: margin,
-      y: height - 935, // was -835
+      y: height - 990, // was -835
       size: 10,
       font: helveticaFont,
       color: mediumGray,
@@ -1204,7 +1204,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
     const generateTime = `Generated: ${new Date().toLocaleString()}`;
     auditPage.drawText(generateTime, {
       x: width - margin - helveticaFont.widthOfTextAtSize(generateTime, 10),
-      y: height - 935, // was -835
+      y: height - 990, // was -835
       size: 10,
       font: helveticaFont,
       color: mediumGray,
@@ -1251,43 +1251,69 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
  * @param {String} publicId - Cloudinary public ID
  * @returns {Buffer} - PDF buffer
  */
-const downloadPdfFromCloudinary = async (publicId) => {
+/**
+ * Downloads PDF from Cloudinary (first via publicId, fallback to direct documentUrl)
+ * @param {String} publicId - Cloudinary public ID
+ * @param {String} documentUrl - Direct Cloudinary delivery URL
+ * @returns {Buffer} - PDF buffer
+ */
+const downloadPdfFromCloudinary = async (publicId, documentUrl) => {
   try {
     console.log("Downloading PDF from Cloudinary, publicId:", publicId);
 
-    // Get the secure URL from Cloudinary
+    // Try getting resource from Cloudinary Admin API
     const result = await cloudinary.api.resource(publicId, {
       resource_type: "raw",
     });
 
     console.log("Cloudinary resource found:", result.secure_url);
 
-    // Download the PDF
+    // Download via secure_url
     const response = await fetch(result.secure_url);
-    console.log("Fetch response status:", response.status, response.statusText);
-
-    if (!response.ok) {
-      throw new Error(`Failed to download PDF: ${response.statusText}`);
-    }
+    if (!response.ok)
+      throw new Error(
+        `Failed to download via secure_url: ${response.statusText}`
+      );
 
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    console.log("PDF downloaded successfully, buffer size:", buffer.length);
+    console.log(
+      "✅ PDF downloaded successfully via publicId, size:",
+      buffer.length
+    );
 
     return buffer;
   } catch (error) {
-    console.error("Error downloading PDF from Cloudinary:", error);
+    console.error("❌ Error downloading PDF by publicId:", error.message);
 
-    // If it's an untrusted customer error, provide specific guidance
-    if (
-      error.message?.includes("untrusted") ||
-      error.error?.code === "show_original_customer_untrusted"
-    ) {
-      throw new Error(
-        "Cloudinary account is marked as untrusted. Please contact Cloudinary support to resolve this issue."
-      );
+    // Fallback: try using documentUrl directly
+    if (documentUrl) {
+      try {
+        console.log("➡️ Falling back to documentUrl:", documentUrl);
+
+        const response = await fetch(documentUrl);
+        if (!response.ok)
+          throw new Error(
+            `Failed to download via documentUrl: ${response.statusText}`
+          );
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        console.log(
+          "✅ PDF downloaded successfully via documentUrl, size:",
+          buffer.length
+        );
+
+        return buffer;
+      } catch (fallbackError) {
+        console.error(
+          "❌ Error downloading PDF via documentUrl:",
+          fallbackError.message
+        );
+        throw fallbackError;
+      }
     }
-
+    // If no fallback available
     throw error;
   }
 };
@@ -1435,12 +1461,6 @@ const testPdfUtils = async () => {
         font: "signature",
         value: "222 ST",
       },
-      {
-        fieldId: "sig7",
-        type: "Typed signature",
-        font: "signature",
-        value: "2025-08-08",
-      },
     ];
 
     // Create a minimal PDF for testing
@@ -1522,19 +1542,19 @@ const testPdfUtils = async () => {
   }
 };
 
-// // Run test if this file is executed directly
-// if (process.argv[1] && process.argv[1].includes("pdfUtils.js")) {
-//   console.log("🚀 Running PDF Utils Test...");
-//   testPdfUtils()
-//     .then(() => {
-//       console.log("✅ Test execution completed");
-//       process.exit(0);
-//     })
-//     .catch((error) => {
-//       console.error("❌ Test execution failed:", error);
-//       process.exit(1);
-//     });
-// }
+// Run test if this file is executed directly
+if (process.argv[1] && process.argv[1].includes("pdfUtils.js")) {
+  console.log("🚀 Running PDF Utils Test...");
+  testPdfUtils()
+    .then(() => {
+      console.log("✅ Test execution completed");
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error("❌ Test execution failed:", error);
+      process.exit(1);
+    });
+}
 
 /**
  * Test function to create a PDF with signature fields using all Google Fonts
@@ -1871,18 +1891,18 @@ const testGoogleFontsInPDF = async () => {
   }
 };
 
-// Run test if this file is executed directly
-if (process.argv[1] && process.argv[1].includes("pdfUtils.js")) {
-  console.log("🚀 Running Google Fonts PDF Test...");
-  testGoogleFontsInPDF()
-    .then((outputPath) => {
-      console.log(
-        `✅ Test completed successfully! PDF saved to: ${outputPath}`
-      );
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error("❌ Test execution failed:", error);
-      process.exit(1);
-    });
-}
+// // Run test if this file is executed directly
+// if (process.argv[1] && process.argv[1].includes("pdfUtils.js")) {
+//   console.log("🚀 Running Google Fonts PDF Test...");
+//   testGoogleFontsInPDF()
+//     .then((outputPath) => {
+//       console.log(
+//         `✅ Test completed successfully! PDF saved to: ${outputPath}`
+//       );
+//       process.exit(0);
+//     })
+//     .catch((error) => {
+//       console.error("❌ Test execution failed:", error);
+//       process.exit(1);
+//     });
+// }

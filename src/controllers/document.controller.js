@@ -556,7 +556,7 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
 // Enhanced submitSignature function with better error handling and notifications
 export const submitSignature = asyncHandler(async (req, res, next) => {
   const { accessToken } = req.params;
-  const { signatureData } = req.body;
+  const { signatureData, documentUrl } = req.body;
 
   try {
     // Find recipient by access token
@@ -646,7 +646,7 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
         signedPdfUrl = await createSignedPDF(
           { ...document, fields: allFields }, // Include fields in document object
           allSignatureData,
-          document.createdBy // Pass user for retention limits if needed
+          documentUrl
         );
 
         console.log(`✅ Signed PDF generated successfully: ${signedPdfUrl}`);
