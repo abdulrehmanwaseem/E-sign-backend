@@ -95,6 +95,15 @@ export const getAllUsers = asyncHandler(async (req, res, next) => {
               documents: true,
             },
           },
+          documents: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+            select: {
+              createdAt: true,
+            },
+          },
         },
         orderBy: orderBy,
         skip: (pageNum - 1) * limitNum,
@@ -117,14 +126,24 @@ export const getAllUsers = asyncHandler(async (req, res, next) => {
       }
     };
 
-    const formattedUsers = users.map((user) => ({
-      ...user,
-      fullName: formatUserName(user),
-      documentSignedAt: "12:13 AM",
-      documentSentCount: user._count.documents,
-      // Remove the _count field as we've extracted it
-      _count: undefined,
-    }));
+    const formattedUsers = users.map((user) => {
+      const lastDocAt = user.documents[0]?.createdAt
+        ? new Date(user.documents[0].createdAt).toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          })
+        : null;
+
+      return {
+        ...user,
+        fullName: formatUserName(user),
+        documentSentAt: lastDocAt,
+        documentSentCount: user._count.documents,
+        documents: undefined,
+        _count: undefined,
+      };
+    });
 
     res.json({
       success: true,
