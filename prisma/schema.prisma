@@ -135,6 +135,7 @@ model SignatureField {
   documentId  String
   recipientId String
   fieldId     String           // Frontend field ID
+  font        String?         @default("signature")
   fieldType   FieldType
   pageNumber  Int
   xPosition   Float

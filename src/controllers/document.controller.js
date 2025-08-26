@@ -587,7 +587,10 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
     const updatePromises = signatureData.map((fieldData) =>
       prisma.signatureField.update({
         where: { id: fieldData.fieldId },
-        data: { fieldValue: fieldData.value },
+        data: {
+          fieldValue: fieldData.value,
+          font: fieldData.font || "signature",
+        },
       })
     );
     await Promise.all(updatePromises);
@@ -636,6 +639,7 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
           .map((field) => ({
             fieldId: field.id,
             value: field.fieldValue,
+            font: field.font || "signature",
           }));
 
         // Generate the signed PDF with enhanced error handling
@@ -766,82 +770,6 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Enhanced function to retry PDF generation for failed documents
-export const retryPdfGeneration = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const createdById = req.user.id;
-
-  try {
-    // Find completed document without signed PDF
-    const document = await prisma.document.findFirst({
-      where: {
-        id,
-        createdById,
-        status: "SIGNED",
-        signedPdfUrl: null, // Only retry if PDF is missing
-      },
-      include: {
-        fields: true,
-        recipients: true,
-      },
-    });
-
-    if (!document) {
-      throw new ApiError("Document not found or PDF already exists", 404);
-    }
-
-    console.log(`🔄 Retrying PDF generation for document ${document.id}`);
-
-    // Get all signature data
-    const allFields = await prisma.signatureField.findMany({
-      where: { documentId: document.id },
-    });
-
-    const allSignatureData = allFields
-      .filter((field) => field.fieldValue)
-      .map((field) => ({
-        fieldId: field.id,
-        value: field.fieldValue,
-      }));
-
-    // Generate the signed PDF
-    const signedPdfUrl = await createSignedPDF(
-      { ...document, fields: allFields },
-      allSignatureData,
-      req.user
-    );
-
-    // Update document with signed PDF URL
-    await prisma.document.update({
-      where: { id: document.id },
-      data: { signedPdfUrl },
-    });
-
-    // Log the retry activity
-    await prisma.documentActivity.create({
-      data: {
-        documentId: document.id,
-        action: "COMPLETED",
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-        details: {
-          pdfGenerationRetry: true,
-          signedPdfUrl,
-        },
-      },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "PDF generated successfully",
-      data: { signedPdfUrl },
-    });
-  } catch (error) {
-    console.error("Retry PDF generation error:", error);
-    throw new ApiError("Failed to generate PDF", 500);
-  }
-});
-
 // @desc    Get document audit trail
 // @route   GET /api/dashboard/documents/:id/audit-trail
 // @access  Private
@@ -929,10 +857,10 @@ export const deleteDocument = asyncHandler(async (req, res) => {
 // @desc    Cancel document
 // @route   PATCH /api/dashboard/documents/:id/cancel
 // @access  Private
-export const cancelDocument = asyncHandler(async (req, res) => {
+export const cancelDocument = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const createdById = req.user.id;
-  console.log("TESTTT", req.params);
+
   try {
     // Find the document first to ensure it belongs to user and can be cancelled
     const document = await prisma.document.findFirst({
@@ -943,14 +871,16 @@ export const cancelDocument = asyncHandler(async (req, res) => {
     });
 
     if (!document) {
-      throw new ApiError("Document not found or access denied", 404);
+      return next(new ApiError("Document not found or access denied", 404));
     }
 
     // Check if document can be cancelled (only PENDING documents can be cancelled)
     if (document.status !== "PENDING") {
-      throw new ApiError(
-        `Cannot cancel document with status: ${document.status}`,
-        400
+      return next(
+        new ApiError(
+          `Cannot cancel document with status: ${document.status}`,
+          400
+        )
       );
     }
 
@@ -983,6 +913,6 @@ export const cancelDocument = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Cancel document error:", error);
-    throw new ApiError("Failed to cancel document", 400);
+    return next(new ApiError("Failed to cancel document", 400));
   }
 });

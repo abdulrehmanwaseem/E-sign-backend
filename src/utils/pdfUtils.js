@@ -11,7 +11,6 @@ import fontkit from "@pdf-lib/fontkit";
 const downloadGoogleFonts = async () => {
   const fonts = {
     inter: null,
-    interBold: null,
     borel: null,
     leagueScript: null,
   };
@@ -40,29 +39,6 @@ const downloadGoogleFonts = async () => {
       }
     } catch (error) {
       console.error("❌ Error downloading Inter Regular:", error.message);
-    }
-
-    // Inter Bold (700) - For bold text fields
-    const interBoldUrl =
-      "https://fonts.gstatic.com/s/inter/v19/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuBiYvZg.ttf";
-    try {
-      console.log("🔄 Fetching Inter Bold (700) from Google Fonts...");
-      const response = await fetch(interBoldUrl);
-      console.log(
-        "📡 Inter Bold response:",
-        response.status,
-        response.statusText
-      );
-      if (response.ok) {
-        fonts.interBold = await response.arrayBuffer();
-        console.log(
-          "✅ Downloaded Inter Bold, size:",
-          fonts.interBold.byteLength,
-          "bytes"
-        );
-      }
-    } catch (error) {
-      console.error("❌ Error downloading Inter Bold:", error.message);
     }
 
     // Borel - Exact URL from Google Fonts CSS API
@@ -114,10 +90,6 @@ const downloadGoogleFonts = async () => {
       fonts.inter ? `${fonts.inter.byteLength} bytes` : "FAILED"
     );
     console.log(
-      "- Inter Bold (titles):",
-      fonts.interBold ? `${fonts.interBold.byteLength} bytes` : "FAILED"
-    );
-    console.log(
       "- Borel (signatura):",
       fonts.borel ? `${fonts.borel.byteLength} bytes` : "FAILED"
     );
@@ -142,6 +114,7 @@ const downloadGoogleFonts = async () => {
  */
 // Pass user to restrict retention for Free users
 export const createSignedPDF = async (document, signatureData, user) => {
+  console.log("🚀 createSignedPDF called", signatureData);
   try {
     console.log("Starting PDF creation for document:", document.id);
     console.log("Document publicId:", document.publicId);
@@ -188,6 +161,7 @@ export const createSignedPDF = async (document, signatureData, user) => {
     let interFont = null;
     let borelFont = null;
     let leagueScriptFont = null;
+    console.log("INTERRR", interFont);
 
     try {
       if (googleFonts.inter) {
@@ -332,732 +306,6 @@ export const createSignedPDF = async (document, signatureData, user) => {
   } catch (error) {
     console.error("Error creating signed PDF:", error);
     throw new Error(`Failed to create signed PDF: ${error.message}`);
-  }
-};
-
-/**
- * Adds an audit trail page to the PDF showing document history and signing activities
- * @param {Uint8Array} pdfBytes - The existing PDF bytes
- * @param {Object} document - Document object with metadata
- * @param {Array} signatureData - Array of signature field data
- * @returns {Uint8Array} - Updated PDF bytes with audit trail page
- */
-const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
-  try {
-    console.log("🔧 Starting audit trail page creation...");
-    console.log("📋 Document name:", document.name);
-    console.log("📊 Signature data entries:", signatureData.length);
-    console.log("📄 Input PDF bytes:", pdfBytes.length);
-
-    // Load the existing PDF
-    const pdfDoc = await PDFDocument.load(pdfBytes);
-    const originalPageCount = pdfDoc.getPageCount();
-    console.log("📄 Loaded existing PDF, current pages:", originalPageCount);
-
-    // SIMPLE TEST: Just try to add a basic page first
-    console.log("🧪 Adding basic test page...");
-    const testPage = pdfDoc.addPage([612, 792]);
-    const testPageCount = pdfDoc.getPageCount();
-    console.log("📄 After adding test page, count:", testPageCount);
-
-    // Add some simple text to the test page
-    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    testPage.drawText("SIMPLE AUDIT TRAIL TEST PAGE", {
-      x: 50,
-      y: 700,
-      size: 20,
-      font: helvetica,
-      color: rgb(1, 0, 0),
-    });
-
-    // Try to save immediately to see if basic modification works
-    const testPdfBytes = await pdfDoc.save();
-    console.log("📊 Test PDF saved, size:", testPdfBytes.length);
-    console.log(
-      "📈 Test size increase:",
-      testPdfBytes.length - pdfBytes.length
-    );
-
-    if (testPdfBytes.length <= pdfBytes.length) {
-      console.error("❌ CRITICAL: Even basic page addition failed!");
-      return pdfBytes; // Return original if we can't even do basic modification
-    }
-
-    console.log(
-      "✅ Basic page addition works, proceeding with full audit trail..."
-    );
-
-    // Continue with the full audit trail implementation...
-    // Get the dimensions of the first page to match width
-    const firstPage = pdfDoc.getPage(0);
-    const { width: originalWidth, height: originalHeight } =
-      firstPage.getSize();
-    console.log(
-      "📏 Original page dimensions:",
-      originalWidth,
-      "x",
-      originalHeight
-    );
-
-    // Remove the test page we added earlier
-    pdfDoc.removePage(testPageCount - 1);
-    console.log(
-      "🗑️ Removed test page, back to:",
-      pdfDoc.getPageCount(),
-      "pages"
-    );
-
-    // Add the actual audit page with simplified approach
-    console.log("📋 Adding actual audit trail page...");
-    const auditPageHeight = Math.max(originalHeight, 865);
-    const auditPage = pdfDoc.addPage([originalWidth, auditPageHeight]);
-    const { width, height } = auditPage.getSize();
-    console.log("📋 Added audit page, dimensions:", width, "x", height);
-    console.log("📊 Final page count:", pdfDoc.getPageCount());
-
-    // Add VERY SIMPLE content to make sure it's visible
-    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-    // Big red header that's impossible to miss
-    auditPage.drawRectangle({
-      x: 20,
-      y: height - 65,
-      width: width - 40,
-      height: 50,
-      color: rgb(44 / 255, 109 / 255, 251 / 255),
-      borderColor: rgb(0, 0, 0),
-      borderWidth: 3,
-    });
-
-    auditPage.drawText("AUDIT TRAIL PAGE", {
-      x: (width - 36 * 10) / 2,
-      y: height - 52.5,
-      size: 36,
-      font: helveticaBold,
-      color: rgb(1, 1, 1),
-    });
-
-    auditPage.drawText(`Document: ${document.name}`, {
-      x: 50,
-      y: height - 100,
-      size: 14,
-      font: helveticaBold,
-      color: rgb(0, 0, 0),
-    });
-
-    auditPage.drawText(`Date: ${new Date().toLocaleDateString()}`, {
-      x: 50,
-      y: height - 120,
-      size: 14,
-      font: helveticaBold,
-      color: rgb(0, 0, 0),
-    });
-
-    console.log("📝 Added simple content to audit page");
-
-    // Now add the professional audit trail content
-    console.log("🎨 Adding professional audit trail content...");
-
-    // Load additional fonts for professional content
-    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const helveticaBoldFont = await pdfDoc.embedFont(
-      StandardFonts.HelveticaBold
-    );
-
-    // Professional colors
-    const primaryBlue = rgb(0.18, 0.36, 0.61);
-    const darkGray = rgb(0.2, 0.2, 0.2);
-    const mediumGray = rgb(0.5, 0.5, 0.5);
-    const lightGray = rgb(0.88, 0.88, 0.88);
-    const successGreen = rgb(0.2, 0.6, 0.2);
-
-    let yPos = height - 200; // Start below the red header
-    const margin = 50;
-
-    // Document Information Section
-    auditPage.drawRectangle({
-      x: margin,
-      y: height - 250,
-      width: width - margin * 2,
-      height: 90,
-      color: rgb(0.97, 0.97, 0.97),
-      borderColor: lightGray,
-      borderWidth: 1,
-    });
-
-    auditPage.drawText("Document Information:", {
-      x: margin,
-      y: height - 150,
-      size: 16,
-      font: helveticaBoldFont,
-      color: primaryBlue,
-    });
-
-    // Document details
-    const createdDate = new Date(
-      document.createdAt || Date.now()
-    ).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-    const documentInfo = [
-      { label: "Created:", value: createdDate },
-      { label: "Document ID:", value: document.id.slice(-8).toUpperCase() },
-      { label: "Status:", value: "Signed" },
-      { label: "By:", value: document.recipient?.name || "Unknown" },
-    ];
-
-    documentInfo.forEach((info, index) => {
-      const itemY = height - 180 - index * 18;
-      auditPage.drawText(`${info.label}`, {
-        x: margin + 15,
-        y: itemY,
-        size: 10,
-        font: helveticaBoldFont,
-        color: darkGray,
-      });
-      auditPage.drawText(info.value, {
-        x: margin + 100,
-        y: itemY,
-        size: 10,
-        font: helveticaFont,
-        color: darkGray,
-      });
-    });
-
-    yPos -= 150;
-
-    // Document History Section
-    auditPage.drawText("Document History", {
-      x: margin,
-      y: height - 280,
-      size: 16,
-      font: helveticaBoldFont,
-      color: primaryBlue,
-    });
-
-    yPos -= 30;
-
-    // Fetch document activities from database
-    let activities = [];
-    try {
-      activities = await prisma.documentActivity.findMany({
-        where: { documentId: document.id },
-        orderBy: { createdAt: "asc" },
-      });
-      console.log("📊 Found document activities:", activities.length);
-    } catch (dbError) {
-      console.log("⚠️ Could not fetch document activities:", dbError.message);
-      // Create comprehensive default activities covering all activity types
-      const baseDate = new Date(document.createdAt);
-
-      activities = [
-        {
-          action: "CREATED",
-          createdAt: new Date(baseDate.getTime()),
-          details: {
-            fileName: document.fileName,
-            createdBy: "admin@penginsign.com",
-            fileSize: "2.5MB",
-          },
-        },
-        {
-          action: "SENT",
-          createdAt: new Date(baseDate.getTime() + 5 * 60 * 1000), // 5 minutes later
-          details: {
-            recipientEmail: document.recipient?.email,
-            sentBy: "admin@penginsign.com",
-            method: "email",
-          },
-        },
-        {
-          action: "VIEWED",
-          createdAt: new Date(baseDate.getTime() + 2 * 60 * 60 * 1000), // 2 hours later
-          details: {
-            viewedBy: document.recipient?.email,
-            ipAddress: "192.168.1.100",
-            device: "Chrome Browser",
-          },
-        },
-        {
-          action: "SIGNED",
-          createdAt: new Date(baseDate.getTime() + 3 * 60 * 60 * 1000), // 3 hours later
-          details: {
-            signedBy: document.recipient?.name,
-            ipAddress: "192.168.1.100",
-            signatureCount: 2,
-          },
-        },
-        {
-          action: "COMPLETED",
-          createdAt: new Date(
-            baseDate.getTime() + 3 * 60 * 60 * 1000 + 30 * 1000
-          ), // 30 seconds after signing
-          details: {
-            completedBy: "System",
-            finalStatus: "Successfully Signed",
-            auditTrailGenerated: true,
-            action: "signing_process_completed",
-          },
-        },
-        {
-          action: "DOWNLOADED",
-          createdAt: new Date(baseDate.getTime() + 4 * 60 * 60 * 1000), // 4 hours later (1 hour after completion)
-          details: {
-            downloadedBy: "admin@penginsign.com",
-            action: "signed_pdf_downloaded",
-            downloadTime: new Date().toISOString(),
-          },
-        },
-      ];
-
-      // Add CANCELLED example (commented out since this document is completed)
-      // This shows what a cancelled document would look like:
-      /*
-      activities.push({
-        action: "CANCELLED",
-        createdAt: new Date(baseDate.getTime() + 1 * 60 * 60 * 1000), // 1 hour later
-        details: { 
-          cancelledBy: "admin@penginsign.com",
-          reason: "Document needs revision",
-          status: "Cancelled"
-        },
-      });
-      */
-
-      console.log(
-        "📝 Created comprehensive mock activities:",
-        activities.length
-      );
-    }
-
-    // Activity timeline
-    activities.forEach((activity, index) => {
-      const activityY = height - 310 - index * 40; // Increased spacing for more details
-      const activityTime = new Date(activity.createdAt).toLocaleString(
-        "en-US",
-        {
-          month: "2-digit",
-          day: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      );
-
-      // Activity icon and text based on action type
-      let actionText = "";
-      let detailText = "";
-      let iconColor = primaryBlue;
-
-      switch (activity.action) {
-        case "CREATED":
-          actionText = "Document created";
-          iconColor = primaryBlue;
-          if (activity.details?.createdBy) {
-            detailText = `Created by ${activity.details.createdBy}`;
-          } else if (activity.details?.fileName) {
-            detailText = `File: ${activity.details.fileName}`;
-          }
-          break;
-        case "SENT":
-          actionText = `Document sent to ${
-            activity.details?.recipientEmail ||
-            document.recipient?.email ||
-            "recipient"
-          }`;
-          iconColor = rgb(0.2, 0.5, 0.8);
-          if (activity.details?.sentBy) {
-            detailText = `Sent by ${activity.details.sentBy}`;
-          } else if (activity.details?.fieldsCount) {
-            detailText = `${activity.details.fieldsCount} signature field(s)`;
-          }
-          break;
-        case "VIEWED":
-          actionText = "Document viewed by recipient";
-          iconColor = rgb(0.9, 0.6, 0.1);
-          if (activity.details?.device) {
-            detailText = `Viewed using ${activity.details.device}`;
-          } else {
-            detailText = `Viewed by ${
-              document.recipient?.email || "recipient"
-            }`;
-          }
-          break;
-        case "SIGNED":
-          actionText = "Document signed by recipient";
-          iconColor = successGreen;
-          if (activity.details?.signatureCount) {
-            detailText = `${activity.details.signatureCount} signature(s) applied`;
-          } else if (activity.details?.fieldsCount) {
-            detailText = `${activity.details.fieldsCount} field(s) signed`;
-          }
-          break;
-        case "COMPLETED":
-          actionText = "Document signing completed";
-          iconColor = successGreen;
-          if (activity.details?.finalStatus) {
-            detailText = activity.details.finalStatus;
-          } else if (activity.details?.action === "signing_process_completed") {
-            detailText = "All signatures applied successfully";
-          }
-          break;
-        case "DOWNLOADED":
-          actionText = "Signed PDF downloaded";
-          iconColor = rgb(0.4, 0.7, 0.4);
-          if (activity.details?.downloadedBy) {
-            detailText = `Downloaded by ${activity.details.downloadedBy}`;
-          }
-          break;
-        case "CANCELLED":
-          actionText = "Document cancelled";
-          iconColor = rgb(0.8, 0.2, 0.2);
-          if (activity.details?.reason) {
-            detailText = `Reason: ${activity.details.reason}`;
-          }
-          break;
-        default:
-          actionText = `Document ${activity.action.toLowerCase()}`;
-          iconColor = mediumGray;
-      }
-
-      // Timeline dot with activity-specific styling
-      auditPage.drawCircle({
-        x: margin + 10,
-        y: activityY + 8,
-        size: 5,
-        color: iconColor,
-      });
-
-      // Timeline line (except for last item)
-      if (index < activities.length - 1) {
-        auditPage.drawLine({
-          start: { x: margin + 10, y: activityY - 15 },
-          end: { x: margin + 10, y: activityY - 30 },
-          thickness: 2,
-          color: lightGray,
-        });
-      }
-
-      // Activity text (main action)
-      auditPage.drawText(actionText, {
-        x: margin + 25,
-        y: activityY + 5,
-        size: 11,
-        font: helveticaBoldFont,
-        color: darkGray,
-      });
-
-      // Timestamp
-      auditPage.drawText(activityTime, {
-        x: margin + 25,
-        y: activityY - 10,
-        size: 9,
-        font: helveticaFont,
-        color: mediumGray,
-      });
-
-      // Additional details if available
-      if (detailText) {
-        auditPage.drawText(detailText, {
-          x: margin + 25,
-          y: activityY - 21,
-          size: 8,
-          font: helveticaFont,
-          color: rgb(0.6, 0.6, 0.6),
-        });
-      }
-    });
-
-    yPos -= activities.length * 40 + 40;
-
-    // Signature Analysis Section
-    if (signatureData && signatureData.length > 0) {
-      auditPage.drawText("Signature Analysis", {
-        x: margin,
-        y: height - 550,
-        size: 16,
-        font: helveticaBoldFont,
-        color: primaryBlue,
-      });
-
-      yPos -= 25;
-
-      signatureData.forEach((signature, index) => {
-        const signatureY = height - 575 - index * 30;
-
-        const signatureType = signature.value.startsWith("data:image/")
-          ? "Drawn signature"
-          : "Typed signature";
-
-        auditPage.drawText(`Signature ${index + 1}: ${signatureType}`, {
-          x: margin + 10,
-          y: signatureY + 8,
-          size: 10,
-          font: helveticaBoldFont,
-          color: darkGray,
-        });
-
-        if (!signature.value.startsWith("data:image/")) {
-          // For typed signatures, show content and font
-          auditPage.drawText(`Content: "${signature.value}"`, {
-            x: margin + 20,
-            y: signatureY - 3,
-            size: 9,
-            font: helveticaFont,
-            color: mediumGray,
-          });
-
-          if (signature.font) {
-            auditPage.drawText(`Font: ${signature.font}`, {
-              x: margin + 20,
-              y: signatureY - 12,
-              size: 9,
-              font: helveticaFont,
-              color: mediumGray,
-            });
-          }
-        } else {
-          // For canvas signatures, show technical details
-          auditPage.drawText(`Type: Hand-drawn signature`, {
-            x: margin + 20,
-            y: signatureY - 3,
-            size: 9,
-            font: helveticaFont,
-            color: mediumGray,
-          });
-
-          auditPage.drawText(`Format: Digital image (Base64 encoded)`, {
-            x: margin + 20,
-            y: signatureY - 12,
-            size: 9,
-            font: helveticaFont,
-            color: mediumGray,
-          });
-        }
-      });
-
-      yPos -= signatureData.length * 30 + 30;
-    }
-
-    // Security Section
-    // Security Section
-    auditPage.drawText("Security & Verification", {
-      x: margin,
-      y: height - 765, // was -750
-      size: 16,
-      font: helveticaBoldFont,
-      color: primaryBlue,
-    });
-
-    yPos -= 25;
-
-    const securityItems = [
-      "Document integrity verified",
-      "Email notifications sent",
-      "Secure PDF generation completed",
-    ];
-
-    securityItems.forEach((item, index) => {
-      const itemY = height - 780 - index * 20; // was -765
-
-      auditPage.drawCircle({
-        x: margin + 10,
-        y: itemY + 4,
-        size: 3,
-        color: successGreen,
-      });
-
-      auditPage.drawText(item, {
-        x: margin + 25,
-        y: itemY,
-        size: 10,
-        font: helveticaFont,
-        color: darkGray,
-      });
-
-      auditPage.drawText("VERIFIED", {
-        x: width - margin - 60,
-        y: itemY,
-        size: 9,
-        font: helveticaBoldFont,
-        color: successGreen,
-      });
-    });
-
-    yPos -= securityItems.length * 20 + 40;
-
-    // Footer
-    auditPage.drawLine({
-      start: { x: margin, y: height - 835 }, // was -820
-      end: { x: width - margin, y: height - 835 }, // was -820
-      thickness: 1,
-      color: lightGray,
-    });
-
-    auditPage.drawText("Powered by PenginSign", {
-      x: margin,
-      y: height - 850, // was -835
-      size: 10,
-      font: helveticaFont,
-      color: mediumGray,
-    });
-
-    const generateTime = `Generated: ${new Date().toLocaleString()}`;
-    auditPage.drawText(generateTime, {
-      x: width - margin - helveticaFont.widthOfTextAtSize(generateTime, 10),
-      y: height - 850, // was -835
-      size: 10,
-      font: helveticaFont,
-      color: mediumGray,
-    });
-
-    console.log("✅ Professional audit trail content added successfully!");
-
-    // Save immediately with minimal processing
-    console.log("💾 Saving PDF with audit page...");
-    const finalPdfBytes = await pdfDoc.save();
-    const finalPageCount = pdfDoc.getPageCount();
-
-    console.log("✅ PDF saved successfully!");
-    console.log("📊 Final page count:", finalPageCount);
-    console.log("📊 Final PDF size:", finalPdfBytes.length, "bytes");
-    console.log(
-      "� Size increase:",
-      finalPdfBytes.length - pdfBytes.length,
-      "bytes"
-    );
-
-    if (finalPageCount <= originalPageCount) {
-      console.error("❌ ERROR: Page count didn't increase!");
-      return pdfBytes;
-    }
-
-    if (finalPdfBytes.length <= pdfBytes.length) {
-      console.error("❌ ERROR: PDF size didn't increase!");
-      return pdfBytes;
-    }
-
-    console.log("🎉 SUCCESS: Audit page added successfully!");
-    return finalPdfBytes;
-  } catch (error) {
-    console.error("❌ Error adding audit trail page:", error);
-    console.error("Error stack:", error.stack);
-    // If audit trail fails, return original PDF
-    return pdfBytes;
-  }
-};
-
-/**
- * Downloads PDF from Cloudinary
- * @param {String} publicId - Cloudinary public ID
- * @returns {Buffer} - PDF buffer
- */
-const downloadPdfFromCloudinary = async (publicId) => {
-  try {
-    console.log("Downloading PDF from Cloudinary, publicId:", publicId);
-
-    // Get the secure URL from Cloudinary
-    const result = await cloudinary.api.resource(publicId, {
-      resource_type: "raw",
-    });
-
-    console.log("Cloudinary resource found:", result.secure_url);
-
-    // Download the PDF
-    const response = await fetch(result.secure_url);
-    console.log("Fetch response status:", response.status, response.statusText);
-
-    if (!response.ok) {
-      throw new Error(`Failed to download PDF: ${response.statusText}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    console.log("PDF downloaded successfully, buffer size:", buffer.length);
-
-    return buffer;
-  } catch (error) {
-    console.error("Error downloading PDF from Cloudinary:", error);
-
-    // If it's an untrusted customer error, provide specific guidance
-    if (
-      error.message?.includes("untrusted") ||
-      error.error?.code === "show_original_customer_untrusted"
-    ) {
-      throw new Error(
-        "Cloudinary account is marked as untrusted. Please contact Cloudinary support to resolve this issue."
-      );
-    }
-
-    throw error;
-  }
-};
-
-/**
- * Uploads signed PDF to Cloudinary
- * @param {Uint8Array} pdfBytes - PDF bytes
- * @param {String} documentId - Document ID for naming
- * @param {String} originalName - Original document name
- * @returns {String} - Cloudinary URL
- */
-const uploadSignedPdfToCloudinary = async (
-  pdfBytes,
-  documentId,
-  originalName
-) => {
-  try {
-    console.log("Uploading signed PDF to Cloudinary...");
-    console.log("Document ID:", documentId);
-    console.log("Original Name:", originalName);
-    console.log("PDF bytes length:", pdfBytes.length);
-
-    // Create a clean file name without extension
-    const fileName = `signed_${originalName.replace(
-      /\.[^/.]+$/,
-      ""
-    )}_${documentId}`;
-
-    console.log("Generated fileName:", fileName);
-
-    // Convert Uint8Array to Buffer
-    const buffer = Buffer.from(pdfBytes);
-    console.log("Buffer created, length:", buffer.length);
-
-    // Upload to Cloudinary
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream(
-          {
-            resource_type: "raw",
-            type: "upload",
-            public_id: uuid(), // Use UUID like original uploads
-            // No folder parameter to match original upload pattern
-          },
-          (error, result) => {
-            if (error) {
-              console.error("Cloudinary upload error:", error);
-              reject(error);
-            } else {
-              console.log("Cloudinary upload success:");
-              console.log("- URL:", result.secure_url);
-              console.log("- Public ID:", result.public_id);
-              console.log("- Resource type:", result.resource_type);
-              resolve(result);
-            }
-          }
-        )
-        .end(buffer);
-    });
-
-    return result.secure_url;
-  } catch (error) {
-    console.error("Error uploading signed PDF to Cloudinary:", error);
-    throw error;
   }
 };
 
@@ -1382,6 +630,732 @@ const embedTextualField = async (
 };
 
 /**
+ * Adds an audit trail page to the PDF showing document history and signing activities
+ * @param {Uint8Array} pdfBytes - The existing PDF bytes
+ * @param {Object} document - Document object with metadata
+ * @param {Array} signatureData - Array of signature field data
+ * @returns {Uint8Array} - Updated PDF bytes with audit trail page
+ */
+const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
+  try {
+    console.log("🔧 Starting audit trail page creation...");
+    console.log("📋 Document name:", document.name);
+    console.log("📊 Signature data entries:", signatureData.length);
+    console.log("📄 Input PDF bytes:", pdfBytes.length);
+
+    // Load the existing PDF
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const originalPageCount = pdfDoc.getPageCount();
+    console.log("📄 Loaded existing PDF, current pages:", originalPageCount);
+
+    // SIMPLE TEST: Just try to add a basic page first
+    console.log("🧪 Adding basic test page...");
+    const testPage = pdfDoc.addPage([612, 792]);
+    const testPageCount = pdfDoc.getPageCount();
+    console.log("📄 After adding test page, count:", testPageCount);
+
+    // Add some simple text to the test page
+    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    testPage.drawText("SIMPLE AUDIT TRAIL TEST PAGE", {
+      x: 50,
+      y: 700,
+      size: 20,
+      font: helvetica,
+      color: rgb(1, 0, 0),
+    });
+
+    // Try to save immediately to see if basic modification works
+    const testPdfBytes = await pdfDoc.save();
+    console.log("📊 Test PDF saved, size:", testPdfBytes.length);
+    console.log(
+      "📈 Test size increase:",
+      testPdfBytes.length - pdfBytes.length
+    );
+
+    if (testPdfBytes.length <= pdfBytes.length) {
+      console.error("❌ CRITICAL: Even basic page addition failed!");
+      return pdfBytes; // Return original if we can't even do basic modification
+    }
+
+    console.log(
+      "✅ Basic page addition works, proceeding with full audit trail..."
+    );
+
+    // Continue with the full audit trail implementation...
+    // Get the dimensions of the first page to match width
+    const firstPage = pdfDoc.getPage(0);
+    const { width: originalWidth, height: originalHeight } =
+      firstPage.getSize();
+    console.log(
+      "📏 Original page dimensions:",
+      originalWidth,
+      "x",
+      originalHeight
+    );
+
+    // Remove the test page we added earlier
+    pdfDoc.removePage(testPageCount - 1);
+    console.log(
+      "🗑️ Removed test page, back to:",
+      pdfDoc.getPageCount(),
+      "pages"
+    );
+
+    // Add the actual audit page with simplified approach
+    console.log("📋 Adding actual audit trail page...");
+    const auditPageHeight = Math.max(originalHeight, 950);
+    const auditPage = pdfDoc.addPage([originalWidth, auditPageHeight]);
+    const { width, height } = auditPage.getSize();
+    console.log("📋 Added audit page, dimensions:", width, "x", height);
+    console.log("📊 Final page count:", pdfDoc.getPageCount());
+
+    // Add VERY SIMPLE content to make sure it's visible
+    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // Big red header that's impossible to miss
+    auditPage.drawRectangle({
+      x: 20,
+      y: height - 65,
+      width: width - 40,
+      height: 50,
+      color: rgb(44 / 255, 109 / 255, 251 / 255),
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 3,
+    });
+
+    auditPage.drawText("AUDIT TRAIL PAGE", {
+      x: (width - 36 * 10) / 2,
+      y: height - 52.5,
+      size: 36,
+      font: helveticaBold,
+      color: rgb(1, 1, 1),
+    });
+
+    auditPage.drawText(`Document: ${document.name}`, {
+      x: 50,
+      y: height - 100,
+      size: 14,
+      font: helveticaBold,
+      color: rgb(0, 0, 0),
+    });
+
+    auditPage.drawText(`Date: ${new Date().toLocaleDateString()}`, {
+      x: 50,
+      y: height - 120,
+      size: 14,
+      font: helveticaBold,
+      color: rgb(0, 0, 0),
+    });
+
+    console.log("📝 Added simple content to audit page");
+
+    // Now add the professional audit trail content
+    console.log("🎨 Adding professional audit trail content...");
+
+    // Load additional fonts for professional content
+    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const helveticaBoldFont = await pdfDoc.embedFont(
+      StandardFonts.HelveticaBold
+    );
+
+    // Professional colors
+    const primaryBlue = rgb(0.18, 0.36, 0.61);
+    const darkGray = rgb(0.2, 0.2, 0.2);
+    const mediumGray = rgb(0.5, 0.5, 0.5);
+    const lightGray = rgb(0.88, 0.88, 0.88);
+    const successGreen = rgb(0.2, 0.6, 0.2);
+
+    let yPos = height - 200; // Start below the red header
+    const margin = 50;
+
+    // Document Information Section
+    auditPage.drawRectangle({
+      x: margin,
+      y: height - 250,
+      width: width - margin * 2,
+      height: 90,
+      color: rgb(0.97, 0.97, 0.97),
+      borderColor: lightGray,
+      borderWidth: 1,
+    });
+
+    auditPage.drawText("Document Information:", {
+      x: margin,
+      y: height - 150,
+      size: 16,
+      font: helveticaBoldFont,
+      color: primaryBlue,
+    });
+
+    // Document details
+    const createdDate = new Date(
+      document.createdAt || Date.now()
+    ).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const documentInfo = [
+      { label: "Created:", value: createdDate },
+      { label: "Document ID:", value: document.id.slice(-8).toUpperCase() },
+      { label: "Status:", value: "Signed" },
+      { label: "By:", value: document.recipient?.name || "Unknown" },
+    ];
+
+    documentInfo.forEach((info, index) => {
+      const itemY = height - 180 - index * 18;
+      auditPage.drawText(`${info.label}`, {
+        x: margin + 15,
+        y: itemY,
+        size: 10,
+        font: helveticaBoldFont,
+        color: darkGray,
+      });
+      auditPage.drawText(info.value, {
+        x: margin + 100,
+        y: itemY,
+        size: 10,
+        font: helveticaFont,
+        color: darkGray,
+      });
+    });
+
+    yPos -= 150;
+
+    // Document History Section
+    auditPage.drawText("Document History", {
+      x: margin,
+      y: height - 275,
+      size: 16,
+      font: helveticaBoldFont,
+      color: primaryBlue,
+    });
+
+    yPos -= 30;
+
+    // Fetch document activities from database
+    let activities = [];
+    try {
+      activities = await prisma.documentActivity.findMany({
+        where: { documentId: document.id },
+        orderBy: { createdAt: "asc" },
+      });
+      console.log("📊 Found document activities:", activities.length);
+    } catch (dbError) {
+      console.log("⚠️ Could not fetch document activities:", dbError.message);
+      // Create comprehensive default activities covering all activity types
+      const baseDate = new Date(document.createdAt);
+
+      activities = [
+        {
+          action: "CREATED",
+          createdAt: new Date(baseDate.getTime()),
+          details: {
+            fileName: document.fileName,
+            createdBy: "admin@penginsign.com",
+            fileSize: "2.5MB",
+          },
+        },
+        {
+          action: "SENT",
+          createdAt: new Date(baseDate.getTime() + 5 * 60 * 1000), // 5 minutes later
+          details: {
+            recipientEmail: document.recipient?.email,
+            sentBy: "admin@penginsign.com",
+            method: "email",
+          },
+        },
+        {
+          action: "VIEWED",
+          createdAt: new Date(baseDate.getTime() + 2 * 60 * 60 * 1000), // 2 hours later
+          details: {
+            viewedBy: document.recipient?.email,
+            ipAddress: "192.168.1.100",
+            device: "Chrome Browser",
+          },
+        },
+        {
+          action: "SIGNED",
+          createdAt: new Date(baseDate.getTime() + 3 * 60 * 60 * 1000), // 3 hours later
+          details: {
+            signedBy: document.recipient?.name,
+            ipAddress: "192.168.1.100",
+            signatureCount: 2,
+          },
+        },
+        {
+          action: "COMPLETED",
+          createdAt: new Date(
+            baseDate.getTime() + 3 * 60 * 60 * 1000 + 30 * 1000
+          ), // 30 seconds after signing
+          details: {
+            completedBy: "System",
+            finalStatus: "Successfully Signed",
+            auditTrailGenerated: true,
+            action: "signing_process_completed",
+          },
+        },
+        {
+          action: "DOWNLOADED",
+          createdAt: new Date(baseDate.getTime() + 4 * 60 * 60 * 1000), // 4 hours later (1 hour after completion)
+          details: {
+            downloadedBy: "admin@penginsign.com",
+            action: "signed_pdf_downloaded",
+            downloadTime: new Date().toISOString(),
+          },
+        },
+      ];
+
+      // Add CANCELLED example (commented out since this document is completed)
+      // This shows what a cancelled document would look like:
+      /*
+      activities.push({
+        action: "CANCELLED",
+        createdAt: new Date(baseDate.getTime() + 1 * 60 * 60 * 1000), // 1 hour later
+        details: { 
+          cancelledBy: "admin@penginsign.com",
+          reason: "Document needs revision",
+          status: "Cancelled"
+        },
+      });
+      */
+
+      console.log(
+        "📝 Created comprehensive mock activities:",
+        activities.length
+      );
+    }
+
+    // Activity timeline
+    activities.forEach((activity, index) => {
+      const activityY = height - 305 - index * 40; // Increased spacing for more details
+      const activityTime = new Date(activity.createdAt).toLocaleString(
+        "en-US",
+        {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      );
+
+      // Activity icon and text based on action type
+      let actionText = "";
+      let detailText = "";
+      let iconColor = primaryBlue;
+
+      switch (activity.action) {
+        case "CREATED":
+          actionText = "Document created";
+          iconColor = primaryBlue;
+          if (activity.details?.createdBy) {
+            detailText = `Created by ${activity.details.createdBy}`;
+          } else if (activity.details?.fileName) {
+            detailText = `File: ${activity.details.fileName}`;
+          }
+          break;
+        case "SENT":
+          actionText = `Document sent to ${
+            activity.details?.recipientEmail ||
+            document.recipient?.email ||
+            "recipient"
+          }`;
+          iconColor = rgb(0.2, 0.5, 0.8);
+          if (activity.details?.sentBy) {
+            detailText = `Sent by ${activity.details.sentBy}`;
+          } else if (activity.details?.fieldsCount) {
+            detailText = `${activity.details.fieldsCount} signature field(s)`;
+          }
+          break;
+        case "VIEWED":
+          actionText = "Document viewed by recipient";
+          iconColor = rgb(0.9, 0.6, 0.1);
+          if (activity.details?.device) {
+            detailText = `Viewed using ${activity.details.device}`;
+          } else {
+            detailText = `Viewed by ${
+              document.recipient?.email || "recipient"
+            }`;
+          }
+          break;
+        case "SIGNED":
+          actionText = "Document signed by recipient";
+          iconColor = successGreen;
+          if (activity.details?.signatureCount) {
+            detailText = `${activity.details.signatureCount} signature(s) applied`;
+          } else if (activity.details?.fieldsCount) {
+            detailText = `${activity.details.fieldsCount} field(s) signed`;
+          }
+          break;
+        case "COMPLETED":
+          actionText = "Document signing completed";
+          iconColor = successGreen;
+          if (activity.details?.finalStatus) {
+            detailText = activity.details.finalStatus;
+          } else if (activity.details?.action === "signing_process_completed") {
+            detailText = "All signatures applied successfully";
+          }
+          break;
+        case "DOWNLOADED":
+          actionText = "Signed PDF downloaded";
+          iconColor = rgb(0.4, 0.7, 0.4);
+          if (activity.details?.downloadedBy) {
+            detailText = `Downloaded by ${activity.details.downloadedBy}`;
+          }
+          break;
+        case "CANCELLED":
+          actionText = "Document cancelled";
+          iconColor = rgb(0.8, 0.2, 0.2);
+          if (activity.details?.reason) {
+            detailText = `Reason: ${activity.details.reason}`;
+          }
+          break;
+        default:
+          actionText = `Document ${activity.action.toLowerCase()}`;
+          iconColor = mediumGray;
+      }
+
+      // Timeline dot with activity-specific styling
+      auditPage.drawCircle({
+        x: margin + 10,
+        y: activityY + 5,
+        size: 5,
+        color: iconColor,
+      });
+
+      // Timeline line (except for last item)
+      if (index < activities.length - 1) {
+        auditPage.drawLine({
+          start: { x: margin + 10, y: activityY - 13 },
+          end: { x: margin + 10, y: activityY - 28 },
+          thickness: 2,
+          color: lightGray,
+        });
+      }
+
+      // Activity text (main action)
+      auditPage.drawText(actionText, {
+        x: margin + 25,
+        y: activityY + 3,
+        size: 11,
+        font: helveticaBoldFont,
+        color: darkGray,
+      });
+
+      // Timestamp
+      auditPage.drawText(activityTime, {
+        x: margin + 25,
+        y: activityY - 8,
+        size: 9,
+        font: helveticaFont,
+        color: mediumGray,
+      });
+
+      // Additional details if available
+      if (detailText) {
+        auditPage.drawText(detailText, {
+          x: margin + 25,
+          y: activityY - 19,
+          size: 8,
+          font: helveticaFont,
+          color: rgb(0.6, 0.6, 0.6),
+        });
+      }
+    });
+
+    yPos -= activities.length * 40 + 40;
+
+    // Signature Analysis Section
+    if (signatureData && signatureData.length > 0) {
+      auditPage.drawText("Signature Analysis", {
+        x: margin,
+        y: height - 615,
+        size: 16,
+        font: helveticaBoldFont,
+        color: primaryBlue,
+      });
+
+      yPos -= 25;
+
+      signatureData.forEach((signature, index) => {
+        const signatureY = height - 640 - index * 30;
+
+        const signatureType = signature.value.startsWith("data:image/")
+          ? "Drawn signature"
+          : "Typed signature";
+
+        auditPage.drawText(`Signature ${index + 1}: ${signatureType}`, {
+          x: margin + 10,
+          y: signatureY + 8,
+          size: 10,
+          font: helveticaBoldFont,
+          color: darkGray,
+        });
+
+        if (!signature.value.startsWith("data:image/")) {
+          // For typed signatures, show content and font
+          auditPage.drawText(`Content: "${signature.value}"`, {
+            x: margin + 20,
+            y: signatureY - 3,
+            size: 9,
+            font: helveticaFont,
+            color: mediumGray,
+          });
+
+          if (signature.font) {
+            auditPage.drawText(`Font: ${signature.font}`, {
+              x: margin + 20,
+              y: signatureY - 12,
+              size: 9,
+              font: helveticaFont,
+              color: mediumGray,
+            });
+          }
+        } else {
+          // For canvas signatures, show technical details
+          auditPage.drawText(`Type: Hand-drawn signature`, {
+            x: margin + 20,
+            y: signatureY - 3,
+            size: 9,
+            font: helveticaFont,
+            color: mediumGray,
+          });
+
+          auditPage.drawText(`Format: Digital image (Base64 encoded)`, {
+            x: margin + 20,
+            y: signatureY - 12,
+            size: 9,
+            font: helveticaFont,
+            color: mediumGray,
+          });
+        }
+      });
+
+      yPos -= signatureData.length * 30 + 30;
+    }
+
+    // Security Section
+    // Security Section
+    auditPage.drawText("Security & Verification", {
+      x: margin,
+      y: height - 850, // was -750
+      size: 16,
+      font: helveticaBoldFont,
+      color: primaryBlue,
+    });
+
+    yPos -= 25;
+
+    const securityItems = [
+      "Document integrity verified",
+      "Email notifications sent",
+      "Secure PDF generation completed",
+    ];
+
+    securityItems.forEach((item, index) => {
+      const itemY = height - 870 - index * 20; // was -765
+
+      auditPage.drawCircle({
+        x: margin + 10,
+        y: itemY + 4,
+        size: 3,
+        color: successGreen,
+      });
+
+      auditPage.drawText(item, {
+        x: margin + 25,
+        y: itemY,
+        size: 10,
+        font: helveticaFont,
+        color: darkGray,
+      });
+
+      auditPage.drawText("VERIFIED", {
+        x: width - margin - 60,
+        y: itemY,
+        size: 9,
+        font: helveticaBoldFont,
+        color: successGreen,
+      });
+    });
+
+    yPos -= securityItems.length * 20 + 40;
+
+    // Footer
+    auditPage.drawLine({
+      start: { x: margin, y: height - 920 }, // was -820
+      end: { x: width - margin, y: height - 920 }, // was -820
+      thickness: 1,
+      color: lightGray,
+    });
+
+    auditPage.drawText("Powered by PenginSign", {
+      x: margin,
+      y: height - 935, // was -835
+      size: 10,
+      font: helveticaFont,
+      color: mediumGray,
+    });
+
+    const generateTime = `Generated: ${new Date().toLocaleString()}`;
+    auditPage.drawText(generateTime, {
+      x: width - margin - helveticaFont.widthOfTextAtSize(generateTime, 10),
+      y: height - 935, // was -835
+      size: 10,
+      font: helveticaFont,
+      color: mediumGray,
+    });
+
+    console.log("✅ Professional audit trail content added successfully!");
+
+    // Save immediately with minimal processing
+    console.log("💾 Saving PDF with audit page...");
+    const finalPdfBytes = await pdfDoc.save();
+    const finalPageCount = pdfDoc.getPageCount();
+
+    console.log("✅ PDF saved successfully!");
+    console.log("📊 Final page count:", finalPageCount);
+    console.log("📊 Final PDF size:", finalPdfBytes.length, "bytes");
+    console.log(
+      "� Size increase:",
+      finalPdfBytes.length - pdfBytes.length,
+      "bytes"
+    );
+
+    if (finalPageCount <= originalPageCount) {
+      console.error("❌ ERROR: Page count didn't increase!");
+      return pdfBytes;
+    }
+
+    if (finalPdfBytes.length <= pdfBytes.length) {
+      console.error("❌ ERROR: PDF size didn't increase!");
+      return pdfBytes;
+    }
+
+    console.log("🎉 SUCCESS: Audit page added successfully!");
+    return finalPdfBytes;
+  } catch (error) {
+    console.error("❌ Error adding audit trail page:", error);
+    console.error("Error stack:", error.stack);
+    // If audit trail fails, return original PDF
+    return pdfBytes;
+  }
+};
+
+/**
+ * Downloads PDF from Cloudinary
+ * @param {String} publicId - Cloudinary public ID
+ * @returns {Buffer} - PDF buffer
+ */
+const downloadPdfFromCloudinary = async (publicId) => {
+  try {
+    console.log("Downloading PDF from Cloudinary, publicId:", publicId);
+
+    // Get the secure URL from Cloudinary
+    const result = await cloudinary.api.resource(publicId, {
+      resource_type: "raw",
+    });
+
+    console.log("Cloudinary resource found:", result.secure_url);
+
+    // Download the PDF
+    const response = await fetch(result.secure_url);
+    console.log("Fetch response status:", response.status, response.statusText);
+
+    if (!response.ok) {
+      throw new Error(`Failed to download PDF: ${response.statusText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log("PDF downloaded successfully, buffer size:", buffer.length);
+
+    return buffer;
+  } catch (error) {
+    console.error("Error downloading PDF from Cloudinary:", error);
+
+    // If it's an untrusted customer error, provide specific guidance
+    if (
+      error.message?.includes("untrusted") ||
+      error.error?.code === "show_original_customer_untrusted"
+    ) {
+      throw new Error(
+        "Cloudinary account is marked as untrusted. Please contact Cloudinary support to resolve this issue."
+      );
+    }
+
+    throw error;
+  }
+};
+
+/**
+ * Uploads signed PDF to Cloudinary
+ * @param {Uint8Array} pdfBytes - PDF bytes
+ * @param {String} documentId - Document ID for naming
+ * @param {String} originalName - Original document name
+ * @returns {String} - Cloudinary URL
+ */
+const uploadSignedPdfToCloudinary = async (
+  pdfBytes,
+  documentId,
+  originalName
+) => {
+  try {
+    console.log("Uploading signed PDF to Cloudinary...");
+    console.log("Document ID:", documentId);
+    console.log("Original Name:", originalName);
+    console.log("PDF bytes length:", pdfBytes.length);
+
+    // Create a clean file name without extension
+    const fileName = `signed_${originalName.replace(
+      /\.[^/.]+$/,
+      ""
+    )}_${documentId}`;
+
+    console.log("Generated fileName:", fileName);
+
+    // Convert Uint8Array to Buffer
+    const buffer = Buffer.from(pdfBytes);
+    console.log("Buffer created, length:", buffer.length);
+
+    // Upload to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            resource_type: "raw",
+            type: "upload",
+            public_id: uuid(), // Use UUID like original uploads
+            // No folder parameter to match original upload pattern
+          },
+          (error, result) => {
+            if (error) {
+              console.error("Cloudinary upload error:", error);
+              reject(error);
+            } else {
+              console.log("Cloudinary upload success:");
+              console.log("- URL:", result.secure_url);
+              console.log("- Public ID:", result.public_id);
+              console.log("- Resource type:", result.resource_type);
+              resolve(result);
+            }
+          }
+        )
+        .end(buffer);
+    });
+
+    return result.secure_url;
+  } catch (error) {
+    console.error("Error uploading signed PDF to Cloudinary:", error);
+    throw error;
+  }
+};
+
+/**
  * Test function to run pdfUtils.js directly with Node.js
  * Usage: node src/utils/pdfUtils.js
  */
@@ -1548,12 +1522,363 @@ const testPdfUtils = async () => {
   }
 };
 
+// // Run test if this file is executed directly
+// if (process.argv[1] && process.argv[1].includes("pdfUtils.js")) {
+//   console.log("🚀 Running PDF Utils Test...");
+//   testPdfUtils()
+//     .then(() => {
+//       console.log("✅ Test execution completed");
+//       process.exit(0);
+//     })
+//     .catch((error) => {
+//       console.error("❌ Test execution failed:", error);
+//       process.exit(1);
+//     });
+// }
+
+/**
+ * Test function to create a PDF with signature fields using all Google Fonts
+ * Usage: node src/utils/pdfUtils.js
+ */
+const testGoogleFontsInPDF = async () => {
+  try {
+    console.log("🎨 Testing Google Fonts in PDF Signatures");
+    console.log("=========================================");
+
+    // Create test PDF document
+    console.log("📄 Creating test PDF...");
+    const testPdfDoc = await PDFDocument.create();
+    const testPage = testPdfDoc.addPage([612, 792]);
+
+    // Register fontkit for Google Fonts support
+    testPdfDoc.registerFontkit(fontkit);
+    console.log("✅ Fontkit registered successfully");
+
+    // Download all Google Fonts
+    console.log("📥 Downloading Google Fonts...");
+    const googleFonts = await downloadGoogleFonts();
+
+    // Load standard fonts as fallbacks
+    const helveticaFont = await testPdfDoc.embedFont(StandardFonts.Helvetica);
+    const helveticaBoldFont = await testPdfDoc.embedFont(
+      StandardFonts.HelveticaBold
+    );
+    const timesRomanFont = await testPdfDoc.embedFont(StandardFonts.TimesRoman);
+
+    // Embed Google Fonts
+    let interFont = null;
+    let borelFont = null;
+    let leagueScriptFont = null;
+
+    if (googleFonts.inter) {
+      try {
+        interFont = await testPdfDoc.embedFont(googleFonts.inter);
+        console.log("✅ Embedded Inter font");
+      } catch (error) {
+        console.error("❌ Failed to embed Inter font:", error.message);
+      }
+    }
+
+    if (googleFonts.borel) {
+      try {
+        borelFont = await testPdfDoc.embedFont(googleFonts.borel);
+        console.log("✅ Embedded Borel font");
+      } catch (error) {
+        console.error("❌ Failed to embed Borel font:", error.message);
+      }
+    }
+
+    if (googleFonts.leagueScript) {
+      try {
+        leagueScriptFont = await testPdfDoc.embedFont(googleFonts.leagueScript);
+        console.log("✅ Embedded League Script font");
+      } catch (error) {
+        console.error("❌ Failed to embed League Script font:", error.message);
+      }
+    }
+
+    const fonts = {
+      helvetica: helveticaFont,
+      helveticaBold: helveticaBoldFont,
+      timesRoman: timesRomanFont,
+      inter: interFont,
+      borel: borelFont,
+      leagueScript: leagueScriptFont,
+    };
+
+    // Add title
+    testPage.drawText("Google Fonts Signature Test", {
+      x: 50,
+      y: 750,
+      size: 24,
+      font: helveticaBoldFont,
+      color: rgb(0, 0, 0),
+    });
+
+    testPage.drawText("Testing all signature font styles with sample text:", {
+      x: 50,
+      y: 720,
+      size: 12,
+      font: helveticaFont,
+      color: rgb(0.3, 0.3, 0.3),
+    });
+
+    // Test signature fields with different fonts and styles
+    const testSignatures = [
+      {
+        label: "Standard Signature (Inter/Helvetica)",
+        value: "John Doe",
+        font: "signature",
+        x: 50,
+        y: 650,
+        width: 200,
+        height: 40,
+      },
+      {
+        label: "Cursive Signature (Borel/Times)",
+        value: "Jane Smith",
+        font: "signatura",
+        x: 320,
+        y: 650,
+        width: 200,
+        height: 40,
+      },
+      {
+        label: "Script Signature (League Script/Times)",
+        value: "Robert Johnson",
+        font: "signaturia",
+        x: 50,
+        y: 570,
+        width: 200,
+        height: 40,
+      },
+      {
+        label: "Bold Signature (Helvetica Bold)",
+        value: "Mary Wilson",
+        font: "drawn",
+        x: 320,
+        y: 570,
+        width: 200,
+        height: 40,
+      },
+      {
+        label: "Initials - Inter",
+        value: "J.D.",
+        font: "signature",
+        x: 50,
+        y: 490,
+        width: 80,
+        height: 30,
+      },
+      {
+        label: "Initials - Borel",
+        value: "M.W.",
+        font: "signatura",
+        x: 180,
+        y: 490,
+        width: 80,
+        height: 30,
+      },
+      {
+        label: "Initials - League Script",
+        value: "R.J.",
+        font: "signaturia",
+        x: 310,
+        y: 490,
+        width: 80,
+        height: 30,
+      },
+      {
+        label: "Email - Inter",
+        value: "john.doe@example.com",
+        font: "signature",
+        x: 50,
+        y: 420,
+        width: 250,
+        height: 25,
+      },
+      {
+        label: "Date - Inter",
+        value: new Date().toLocaleDateString(),
+        font: "signature",
+        x: 350,
+        y: 420,
+        width: 150,
+        height: 25,
+      },
+      {
+        label: "Large Signature - Borel",
+        value: "Elizabeth Catherine Montgomery",
+        font: "signatura",
+        x: 50,
+        y: 350,
+        width: 400,
+        height: 50,
+      },
+      {
+        label: "Large Script - League Script",
+        value: "Alexander Benjamin Richardson",
+        font: "signaturia",
+        x: 50,
+        y: 280,
+        width: 400,
+        height: 50,
+      },
+    ];
+
+    console.log("🖊️  Adding signature fields to PDF...");
+
+    // Add signature fields using the embedSignature function
+    for (const sig of testSignatures) {
+      // Draw label
+      testPage.drawText(sig.label + ":", {
+        x: sig.x,
+        y: sig.y + sig.height + 10,
+        size: 10,
+        font: helveticaFont,
+        color: rgb(0.5, 0.5, 0.5),
+      });
+
+      // Draw field border for visualization
+      testPage.drawRectangle({
+        x: sig.x,
+        y: sig.y,
+        width: sig.width,
+        height: sig.height,
+        borderColor: rgb(0.8, 0.8, 0.8),
+        borderWidth: 1,
+      });
+
+      // Embed signature using the actual function from your code
+      try {
+        await embedSignature(
+          testPage,
+          sig.value,
+          sig.x,
+          sig.y,
+          sig.width,
+          sig.height,
+          fonts,
+          sig.font
+        );
+        console.log(`✅ Added signature: ${sig.label}`);
+      } catch (error) {
+        console.error(
+          `❌ Failed to add signature ${sig.label}:`,
+          error.message
+        );
+      }
+    }
+
+    // Add font availability status
+    let statusY = 200;
+    testPage.drawText("Google Fonts Status:", {
+      x: 50,
+      y: statusY,
+      size: 14,
+      font: helveticaBoldFont,
+      color: rgb(0, 0, 0),
+    });
+
+    const fontStatus = [
+      { name: "Inter (signature)", available: !!interFont },
+      { name: "Borel (signatura)", available: !!borelFont },
+      { name: "League Script (signaturia)", available: !!leagueScriptFont },
+    ];
+
+    fontStatus.forEach((font, index) => {
+      const y = statusY - 25 - index * 20;
+      const status = font.available ? "[OK] Available" : "[FAIL] Failed";
+      const color = font.available ? rgb(0, 0.6, 0) : rgb(0.8, 0, 0);
+
+      testPage.drawText(`${font.name}: ${status}`, {
+        x: 70,
+        y: y,
+        size: 11,
+        font: helveticaFont,
+        color: color,
+      });
+    });
+
+    // Add instructions
+    testPage.drawText("Instructions:", {
+      x: 50,
+      y: 120,
+      size: 12,
+      font: helveticaBoldFont,
+      color: rgb(0, 0, 0),
+    });
+
+    const instructions = [
+      "1. Each signature above shows different font styles",
+      "2. 'signature' font uses Inter (or Helvetica fallback)",
+      "3. 'signatura' font uses Borel (or Times fallback)",
+      "4. 'signaturia' font uses League Script (or Times fallback)",
+      "5. Google Fonts are downloaded from their CDN",
+    ];
+
+    instructions.forEach((instruction, index) => {
+      testPage.drawText(instruction, {
+        x: 70,
+        y: 100 - index * 15,
+        size: 10,
+        font: helveticaFont,
+        color: rgb(0.3, 0.3, 0.3),
+      });
+    });
+
+    // Save the PDF
+    const finalPdfBytes = await testPdfDoc.save();
+    console.log("📊 Final PDF size:", finalPdfBytes.length, "bytes");
+
+    // Save to file
+    const fs = await import("fs");
+    const path = await import("path");
+    const outputPath = path.join(
+      process.cwd(),
+      "google-fonts-signature-test.pdf"
+    );
+    fs.writeFileSync(outputPath, finalPdfBytes);
+
+    console.log(`💾 Test PDF saved to: ${outputPath}`);
+    console.log("📖 Open this file to see all Google Fonts in action!");
+
+    // Summary
+    console.log("\n--- Test Summary ---");
+    console.log("==================");
+    console.log(`Total signatures added: ${testSignatures.length}`);
+    console.log(`Inter font: ${interFont ? "[OK] Working" : "[FAIL] Failed"}`);
+    console.log(`Borel font: ${borelFont ? "[OK] Working" : "[FAIL] Failed"}`);
+    console.log(
+      `League Script font: ${
+        leagueScriptFont ? "[OK] Working" : "[FAIL] Failed"
+      }`
+    );
+
+    const workingFonts = [interFont, borelFont, leagueScriptFont].filter(
+      (f) => f
+    ).length;
+    console.log(`Google Fonts working: ${workingFonts}/3`);
+
+    console.log("\n--- Google Fonts test completed ---");
+    console.log("===================================");
+
+    return outputPath;
+  } catch (error) {
+    console.error("❌ Google Fonts test failed:", error);
+    console.error("Error stack:", error.stack);
+    throw error;
+  }
+};
+
 // Run test if this file is executed directly
 if (process.argv[1] && process.argv[1].includes("pdfUtils.js")) {
-  console.log("🚀 Running PDF Utils Test...");
-  testPdfUtils()
-    .then(() => {
-      console.log("✅ Test execution completed");
+  console.log("🚀 Running Google Fonts PDF Test...");
+  testGoogleFontsInPDF()
+    .then((outputPath) => {
+      console.log(
+        `✅ Test completed successfully! PDF saved to: ${outputPath}`
+      );
       process.exit(0);
     })
     .catch((error) => {
