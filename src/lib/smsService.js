@@ -13,7 +13,6 @@ const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 // Send OTP using Twilio Verify service
 export const sendPhoneOTP = async (phoneNumber, customOtp = null) => {
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
-    console.error("Twilio credentials are not configured");
     throw new Error("SMS service is not configured");
   }
 
