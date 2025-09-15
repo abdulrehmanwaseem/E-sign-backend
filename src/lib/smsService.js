@@ -11,7 +11,6 @@ if (!TELNYX_API_KEY) {
 // Enhanced SMS sending with better error handling and logging
 export const sendPhoneOTP = async (phoneNumber, otp) => {
   if (!TELNYX_API_KEY) {
-    console.error("Telnyx API key is not configured");
     throw new Error("SMS service is not configured");
   }
 
