@@ -6,6 +6,7 @@ import { sendOTPEmail } from "../lib/emailService.js";
 import {
   formatPhoneNumber,
   sendPhoneOTP,
+  twilioVerifyOTP,
   validatePhoneNumber,
 } from "../lib/smsService.js";
 import { ApiError } from "../utils/ApiError.js";
