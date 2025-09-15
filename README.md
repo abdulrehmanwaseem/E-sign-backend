@@ -1,1 +1,1 @@
-# Fynosign application programming interface (API)
+# E-sign application programming interface (API)
