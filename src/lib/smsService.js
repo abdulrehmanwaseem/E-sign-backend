@@ -1,96 +1,118 @@
-import fetch from "node-fetch";
+import twilio from "twilio";
 
-const TELNYX_API_KEY = process.env.TELNYX_API_KEY;
-const TELNYX_MESSAGING_PROFILE_ID = process.env.TELNYX_MESSAGING_PROFILE_ID;
-const TELNYX_FROM_NUMBER = process.env.TELNYX_FROM_NUMBER;
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_VERIFY_SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID;
 
-if (!TELNYX_API_KEY) {
-  console.warn("TELNYX_API_KEY is not configured");
+if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
+  console.warn("Twilio credentials are not properly configured");
 }
 
-// Enhanced SMS sending with better error handling and logging
-export const sendPhoneOTP = async (phoneNumber, otp) => {
-  if (!TELNYX_API_KEY) {
+const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+
+// Send OTP using Twilio Verify service
+export const sendPhoneOTP = async (phoneNumber, customOtp = null) => {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
+    console.error("Twilio credentials are not configured");
     throw new Error("SMS service is not configured");
   }
 
-  const message = `Your Fynosign verification code is: ${otp}. This code will expire in 10 minutes. Do not share this code with anyone.`;
+  const formattedPhone = formatPhoneNumber(phoneNumber);
 
-  const payload = {
-    from: TELNYX_FROM_NUMBER,
-    to: phoneNumber,
-    text: message,
-    messaging_profile_id: TELNYX_MESSAGING_PROFILE_ID,
-  };
+  if (!validatePhoneNumber(formattedPhone)) {
+    throw new Error("Invalid phone number format");
+  }
 
-  console.log("Sending SMS with payload:", JSON.stringify(payload, null, 2));
+  console.log(`Sending OTP to: ${formattedPhone}`);
 
   try {
-    const response = await fetch("https://api.telnyx.com/v2/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TELNYX_API_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    // Use Twilio Verify service to send OTP
+    const verification = await client.verify.v2
+      .services(TWILIO_VERIFY_SERVICE_SID)
+      .verifications.create({
+        to: formattedPhone,
+        channel: "sms",
+      });
 
-    const data = await response.json();
+    console.log("OTP sent successfully with SID:", verification.sid);
+    console.log("Verification status:", verification.status);
 
-    // Log the full response for debugging
-    console.log("Telnyx API Response Status:", response.status);
-    console.log("Telnyx API Response:", JSON.stringify(data, null, 2));
-
-    if (!response.ok) {
-      console.error("Telnyx SMS error:", data);
-      throw new Error(data.errors?.[0]?.detail || "Failed to send SMS");
-    }
-
-    const messageId = data.data?.id;
-    console.log("SMS sent successfully with message ID:", messageId);
-
-    // Store message ID for tracking (you might want to save this to database)
-    if (messageId) {
-      // Optionally check message status after a delay
-      setTimeout(() => checkMessageStatus(messageId), 30000); // Check after 30 seconds
-    }
-
-    return data;
+    return {
+      success: true,
+      sid: verification.sid,
+      status: verification.status,
+      to: verification.to,
+      channel: verification.channel,
+    };
   } catch (error) {
-    console.error("SMS sending error:", error);
-    throw error;
+    console.error("Twilio SMS error:", error);
+    throw new Error(error.message || "Failed to send SMS");
   }
 };
 
-// Function to check message delivery status
-export const checkMessageStatus = async (messageId) => {
+// Verify OTP using Twilio Verify service
+export const twilioVerifyOTP = async (phoneNumber, code) => {
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_VERIFY_SERVICE_SID) {
+    console.error("Twilio credentials are not configured");
+    throw new Error("SMS service is not configured");
+  }
+
+  const formattedPhone = formatPhoneNumber(phoneNumber);
+
+  console.log(`Verifying OTP for: ${formattedPhone} with code: ${code}`);
+
   try {
-    const response = await fetch(
-      `https://api.telnyx.com/v2/messages/${messageId}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${TELNYX_API_KEY}`,
-        },
-      }
-    );
+    const verificationCheck = await client.verify.v2
+      .services(TWILIO_VERIFY_SERVICE_SID)
+      .verificationChecks.create({
+        to: formattedPhone,
+        code: code,
+      });
 
-    const data = await response.json();
-    console.log(
-      `Message ${messageId} status:`,
-      data.data?.to,
-      data.data?.delivery_status
-    );
+    console.log("OTP verification result:", verificationCheck.status);
 
-    return data.data;
+    return {
+      success: verificationCheck.status === "approved",
+      status: verificationCheck.status,
+      sid: verificationCheck.sid,
+      to: verificationCheck.to,
+    };
   } catch (error) {
-    console.error("Error checking message status:", error);
+    console.error("Twilio OTP verification error:", error);
+    throw new Error(error.message || "Failed to verify OTP");
+  }
+};
+
+// Get verification status from Twilio
+export const getVerificationStatus = async (phoneNumber) => {
+  const formattedPhone = formatPhoneNumber(phoneNumber);
+
+  try {
+    const verifications = await client.verify.v2
+      .services(TWILIO_VERIFY_SERVICE_SID)
+      .verifications.list({
+        to: formattedPhone,
+        limit: 1,
+      });
+
+    if (verifications.length > 0) {
+      const verification = verifications[0];
+      return {
+        status: verification.status,
+        channel: verification.channel,
+        to: verification.to,
+        dateCreated: verification.dateCreated,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error getting verification status:", error);
     return null;
   }
 };
 
-// Improved phone number formatting - more strict for US numbers
+// Enhanced phone number formatting - supports international numbers
 export const formatPhoneNumber = (phoneNumber) => {
   if (!phoneNumber) return phoneNumber;
   const trimmed = String(phoneNumber).trim();
@@ -102,20 +124,36 @@ export const formatPhoneNumber = (phoneNumber) => {
 
   const digits = trimmed.replace(/\D/g, "");
 
-  // For US numbers, ensure proper formatting
+  // For Pakistani numbers starting with 92
+  if (digits.startsWith("92") && digits.length >= 12) {
+    return `+${digits}`;
+  }
+
+  // For Pakistani numbers starting with 03 (convert to +92)
+  if (digits.startsWith("03") && digits.length === 11) {
+    return `+92${digits.substring(1)}`;
+  }
+
+  // For US numbers
   if (digits.length === 10) {
-    return `+1${digits}`; // US numbers
+    return `+1${digits}`;
   } else if (digits.length === 11 && digits.startsWith("1")) {
-    return `+${digits}`; // US numbers with country code
+    return `+${digits}`;
   }
 
   // For other international numbers
   return digits.length >= 7 ? `+${digits}` : trimmed;
 };
 
-// Enhanced validation with better US number handling
+// Enhanced validation with better international number handling
 export const validatePhoneNumber = (phoneNumber) => {
   const formatted = formatPhoneNumber(phoneNumber);
+
+  // Pakistani number validation
+  const pkNumber = /^\+92[3][0-9]{9}$/;
+  if (pkNumber.test(formatted)) {
+    return true;
+  }
 
   // US number validation
   const usNumber = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
@@ -128,34 +166,31 @@ export const validatePhoneNumber = (phoneNumber) => {
   return e164.test(formatted);
 };
 
-// Enhanced webhook handler with better logging
-export const telnyxWebhookHandler = (req, res) => {
+// Twilio webhook handler for delivery status updates
+export const twilioWebhookHandler = (req, res) => {
   const event = req.body;
 
-  console.log("=== Telnyx Webhook Event ===");
-  console.log("Event Type:", event.event_type);
-  console.log("Message ID:", event.data?.id);
-  console.log("To:", event.data?.to);
-  console.log("From:", event.data?.from);
-  console.log("Status:", event.data?.status);
+  console.log("=== Twilio Webhook Event ===");
+  console.log("Event Type:", event.EventType);
+  console.log("Service SID:", event.ServiceSid);
+  console.log("To:", event.To);
+  console.log("Status:", event.Status);
+  console.log("Channel:", event.Channel);
   console.log("Full Event:", JSON.stringify(event, null, 2));
 
   // Handle different event types
-  switch (event.event_type) {
-    case "message.sent":
-      console.log("Message sent successfully");
+  switch (event.EventType) {
+    case "verification.started":
+      console.log("Verification started");
       break;
-    case "message.delivered":
-      console.log("Message delivered to recipient");
+    case "verification.completed":
+      console.log("Verification completed successfully");
       break;
-    case "message.delivery_failed":
-      console.error("Message delivery failed:", event.data?.errors);
-      break;
-    case "message.received":
-      console.log("Received reply message");
+    case "verification.failed":
+      console.error("Verification failed:", event.Reason);
       break;
     default:
-      console.log("Unknown event type:", event.event_type);
+      console.log("Unknown event type:", event.EventType);
   }
 
   res.status(200).json({ received: true });

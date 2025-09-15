@@ -344,39 +344,41 @@ const verifyPhoneOTP = TryCatch(async (req, res, next) => {
     return next(new ApiError("Phone number already verified", 400));
   }
 
-  if (!user.phoneOtp || user.phoneOtp !== otp) {
-    return next(new ApiError("Invalid OTP", 400));
+  // Use Twilio Verify service to verify OTP
+  try {
+    const verificationResult = await twilioVerifyOTP(user.phone, otp);
+
+    if (!verificationResult.success) {
+      return next(new ApiError("Invalid or expired OTP", 400));
+    }
+
+    // Verify the phone (no need to clear OTP fields since Twilio handles it)
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isPhoneVerified: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        avatar: true,
+        provider: true,
+        phone: true,
+        isPhoneVerified: true,
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+      user: updatedUser,
+      message: "Phone number verified successfully",
+    });
+  } catch (error) {
+    console.error("Phone OTP verification error:", error);
+    return next(new ApiError("Failed to verify OTP. Please try again.", 500));
   }
-
-  if (!user.phoneOtpExpires || new Date() > user.phoneOtpExpires) {
-    return next(new ApiError("OTP expired", 400));
-  }
-
-  // Verify the phone and clear OTP
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      isPhoneVerified: true,
-      phoneOtp: null,
-      phoneOtpExpires: null,
-    },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      avatar: true,
-      provider: true,
-      phone: true,
-      isPhoneVerified: true,
-    },
-  });
-
-  res.status(200).json({
-    status: "success",
-    user: updatedUser,
-    message: "Phone number verified successfully",
-  });
 });
 
 const resendPhoneOTP = TryCatch(async (req, res, next) => {
@@ -403,17 +405,10 @@ const resendPhoneOTP = TryCatch(async (req, res, next) => {
     return next(new ApiError("Phone number already verified", 400));
   }
 
-  const phoneOtp = generateOTP();
-  const phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { phoneOtp, phoneOtpExpires },
-  });
-
-  // Send SMS OTP
+  // Send SMS OTP using Twilio Verify (no need to generate/store OTP manually)
   try {
-    await sendPhoneOTP(user.phone, phoneOtp);
+    const result = await sendPhoneOTP(user.phone);
+    console.log("Twilio verification resent:", result);
   } catch (error) {
     console.error("Failed to resend SMS OTP:", error);
     return next(new ApiError("Failed to send SMS OTP. Please try again.", 500));
@@ -425,10 +420,10 @@ const resendPhoneOTP = TryCatch(async (req, res, next) => {
   });
 });
 
-// Telnyx webhook handler (basic example)
-const telnyxWebhookHandler = (req, res) => {
+// Twilio webhook handler
+const twilioWebhookHandler = (req, res) => {
   const event = req.body;
-  console.log("Received Telnyx webhook event:", event);
+  console.log("Received Twilio webhook event:", event);
 
   res.status(200).json({ received: true });
 };
@@ -443,5 +438,5 @@ export {
   signup,
   verifyEmail,
   verifyPhoneOTP,
-  telnyxWebhookHandler,
+  twilioWebhookHandler,
 };

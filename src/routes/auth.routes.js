@@ -3,31 +3,30 @@ import {
   getMyProfile,
   login,
   logout,
-  signup,
-  verifyEmail,
   resendOTP,
-  sendPhoneVerification,
-  verifyPhoneOTP,
   resendPhoneOTP,
-  telnyxWebhookHandler,
+  sendPhoneVerification,
+  signup,
+  twilioWebhookHandler,
+  verifyEmail,
+  verifyPhoneOTP,
 } from "../controllers/auth.controller.js";
-// Telnyx webhook endpoint (public, no auth)
+// Twilio webhook endpoint (public, no auth)
 import {
   loginValidator,
   registerValidator,
-  validateHandler,
-  verifyEmailValidator,
   resendOTPValidator,
   sendPhoneVerificationValidator,
+  validateHandler,
+  verifyEmailValidator,
   verifyPhoneOTPValidator,
 } from "../lib/validators.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
-import { sendPhoneOTP } from "../lib/smsService.js";
 
 export const authRouter = Router();
 
-authRouter.post("/webhook/telnyx", telnyxWebhookHandler);
-authRouter.post("/webhook/telnyx/error", telnyxWebhookHandler);
+authRouter.post("/webhook/twilio", twilioWebhookHandler);
+authRouter.post("/webhook/twilio/error", twilioWebhookHandler);
 
 authRouter.route("/signup").post(registerValidator(), validateHandler, signup);
 authRouter.route("/login").post(loginValidator(), validateHandler, login);
@@ -58,14 +57,3 @@ authRouter.post("/resend-phone-otp", isAuthenticated, resendPhoneOTP);
 
 // Protected Routes:
 authRouter.get("/me", isAuthenticated, getMyProfile);
-
-// Test endpoint
-authRouter.post("/test-sms", async (req, res) => {
-  const { phone } = req.body;
-  try {
-    const result = await sendPhoneOTP(phone, "123456");
-    res.json({ success: true, messageId: result.data?.id });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
