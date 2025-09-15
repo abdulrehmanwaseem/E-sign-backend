@@ -15,7 +15,7 @@ export const sendPhoneOTP = async (phoneNumber, otp) => {
     throw new Error("SMS service is not configured");
   }
 
-  const message = `Your PenginSign verification code is: ${otp}. This code will expire in 10 minutes. Do not share this code with anyone.`;
+  const message = `Your Fynosign verification code is: ${otp}. This code will expire in 10 minutes. Do not share this code with anyone.`;
 
   const payload = {
     from: TELNYX_FROM_NUMBER,

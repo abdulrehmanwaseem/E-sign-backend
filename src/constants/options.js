@@ -3,8 +3,8 @@ const cookieExpiresIn = process.env.COOKIE_EXPIRES_IN || "10d";
 const cookieOptions = {
   maxAge: parseInt(cookieExpiresIn) * 24 * 60 * 60 * 1000,
   sameSite: "none",
-  httpOnly: true,
-  secure: true,
+  httpOnly: false,
+  secure: false,
 };
 
 const corsOptions = {

@@ -1,7 +1,7 @@
 {
-  "name": "pengin-sign-api",
+  "name": "fynosign-api",
   "version": "1.0.0",
-  "description": "Pengin-sign application programming interface (API)",
+  "description": "Fynosign application programming interface (API)",
   "main": "server.js",
   "type": "module",
   "scripts": {

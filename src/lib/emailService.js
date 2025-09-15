@@ -52,7 +52,7 @@ export const sendSigningInvitation = async (
 
     const mailOptions = {
       from: {
-        name: process.env.FROM_NAME || "PenginSign",
+        name: process.env.FROM_NAME || "Fynosign",
         address: process.env.FROM_EMAIL || "93e6cb001@smtp-brevo.com",
       },
       to: recipient.email,
@@ -226,7 +226,7 @@ const createSigningInvitationTemplate = ({
 <body>
   <div class="email-container">
     <div class="header">
-      <h1 class="logo">PenginSign</h1>
+      <h1 class="logo">Fynosign</h1>
     </div>
     
     <div class="main-content">
@@ -262,14 +262,14 @@ const createSigningInvitationTemplate = ({
       <div class="warning-box">
         <div class="warning-title">Do Not Share This Email</div>
         <div class="warning-text">
-          This email contains a secure link to PenginSign. Please do not share this email, link, or access code with others.
+          This email contains a secure link to Fynosign. Please do not share this email, link, or access code with others.
         </div>
       </div>
     </div>
     
     <div class="footer">
       <div class="footer-text">
-        This message was sent to you by ${senderName} who is using the PenginSign Electronic Signature Service. <br><br>
+        This message was sent to you by ${senderName} who is using the Fynosign Electronic Signature Service. <br><br>
         If you're having trouble with the button above, copy and paste the following URL into your browser: <br>
         ${signingUrl}
       </div>
@@ -347,7 +347,7 @@ export const sendCompletionNotification = async (
 
     const mailOptions = {
       from: {
-        name: process.env.FROM_NAME || "PenginSign",
+        name: process.env.FROM_NAME || "Fynosign",
         address: process.env.FROM_EMAIL || "93e6cb001@smtp-brevo.com",
       },
       to: sender.email,
@@ -377,11 +377,11 @@ export const sendOTPEmail = async (email, otp) => {
 
     const mailOptions = {
       from: {
-        name: process.env.FROM_NAME || "PenginSign",
+        name: process.env.FROM_NAME || "Fynosign",
         address: process.env.FROM_EMAIL || "93e6cb001@smtp-brevo.com",
       },
       to: email,
-      subject: "Email Verification - PenginSign",
+      subject: "Email Verification - Fynosign",
       html: htmlTemplate,
     };
 
@@ -408,9 +408,7 @@ export const sendDocumentOpenedNotification = async ({
 }) => {
   try {
     await transporter.sendMail({
-      from: `PenginSign <${
-        process.env.SMTP_USER || "93e6cb001@smtp-brevo.com"
-      }>`,
+      from: `Fynosign <${process.env.SMTP_USER || "93e6cb001@smtp-brevo.com"}>`,
       to: senderEmail,
       subject: `Your document '${documentName}' was opened by ${recipientName}`,
       html: `
@@ -421,7 +419,7 @@ export const sendDocumentOpenedNotification = async ({
           <p>This means the recipient has viewed the document and may proceed to sign.</p>
           <p style="font-size: 13px; color: #888;">Document ID: ${documentId}</p>
           <hr style="margin: 24px 0;">
-          <p style="font-size: 12px; color: #999;">PenginSign - Secure E-signature Platform</p>
+          <p style="font-size: 12px; color: #999;">Fynosign - Secure E-signature Platform</p>
         </div>
       `,
     });
@@ -634,7 +632,7 @@ const createCompletionNotificationTemplate = ({
 <body>
     <div class="email-container">
         <div class="header">
-            <h1 class="logo">PenginSign</h1>
+            <h1 class="logo">Fynosign</h1>
         </div>
 
         <div class="main-content">
@@ -669,14 +667,14 @@ const createCompletionNotificationTemplate = ({
         </div>
 
         <div class="footer">
-            <div class="footer-title">About PenginSign</div>
+            <div class="footer-title">About Fynosign</div>
             <div class="footer-text">
-                This document was signed using PenginSign's secure electronic signature platform.
+                This document was signed using Fynosign's secure electronic signature platform.
             </div>
 
             <div class="footer-text">
                 If you have any questions about this signed document, please contact our support team at 
-                <a href="mailto:support@penginsign.com" class="footer-link">support@penginsign.com</a>.
+                <a href="mailto:support@fynosign.com" class="footer-link">support@Fynosign.com</a>.
             </div>
 
             <div class="small-text">
@@ -700,7 +698,7 @@ const createOTPEmailTemplate = ({ email, otp }) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Verification - PenginSign</title>
+    <title>Email Verification - Fynosign</title>
     <style>
         * {
             margin: 0;
@@ -874,14 +872,14 @@ const createOTPEmailTemplate = ({ email, otp }) => {
     <div class="email-container">
         <div class="header">
             <h1>Verify Your Email</h1>
-            <p>Complete your PenginSign registration</p>
+            <p>Complete your Fynosign registration</p>
         </div>
         
         <div class="content">
             <div class="verification-icon">🔐</div>
             
             <div class="message">
-                Thank you for signing up with PenginSign!<br>
+                Thank you for signing up with Fynosign!<br>
                 Please use the verification code below to complete your account setup.
             </div>
             
@@ -898,28 +896,28 @@ const createOTPEmailTemplate = ({ email, otp }) => {
             <div class="instructions">
                 <h3>How to verify:</h3>
                 <ol>
-                    <li>Return to the PenginSign verification page</li>
+                    <li>Return to the Fynosign verification page</li>
                     <li>Enter the 6-digit code shown above</li>
                     <li>Click "Verify Email" to complete setup</li>
                 </ol>
             </div>
             
             <div class="security-notice">
-                🛡️ <strong>Security Note:</strong> If you didn't create a PenginSign account, please ignore this email. 
+                🛡️ <strong>Security Note:</strong> If you didn't create a Fynosign account, please ignore this email. 
                 Never share this verification code with anyone.
             </div>
         </div>
         
         <div class="footer">
             <div>
-                This email was sent to <strong>${email}</strong> because you started the registration process for PenginSign.
+                This email was sent to <strong>${email}</strong> because you started the registration process for Fynosign.
             </div>
             
             <div class="small-text">
                 Need help? Contact our support team at 
-                <a href="mailto:support@penginsign.com" class="footer-link">support@penginsign.com</a>
+                <a href="mailto:support@fynosign.com" class="footer-link">support@fynosign.com</a>
                 <br><br>
-                PenginSign - Secure Electronic Signature Platform<br>
+                Fynosign - Secure Electronic Signature Platform<br>
                 Making document signing simple, secure, and legally binding.
             </div>
         </div>

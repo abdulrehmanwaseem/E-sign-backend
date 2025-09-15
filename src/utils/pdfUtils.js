@@ -856,7 +856,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
           createdAt: new Date(baseDate.getTime()),
           details: {
             fileName: document.fileName,
-            createdBy: "admin@penginsign.com",
+            createdBy: "admin@fynosign.com",
             fileSize: "2.5MB",
           },
         },
@@ -865,7 +865,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
           createdAt: new Date(baseDate.getTime() + 5 * 60 * 1000), // 5 minutes later
           details: {
             recipientEmail: document.recipient?.email,
-            sentBy: "admin@penginsign.com",
+            sentBy: "admin@fynosign.com",
             method: "email",
           },
         },
@@ -903,7 +903,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
           action: "DOWNLOADED",
           createdAt: new Date(baseDate.getTime() + 4 * 60 * 60 * 1000), // 4 hours later (1 hour after completion)
           details: {
-            downloadedBy: "admin@penginsign.com",
+            downloadedBy: "admin@fynosign.com",
             action: "signed_pdf_downloaded",
             downloadTime: new Date().toISOString(),
           },
@@ -917,7 +917,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
         action: "CANCELLED",
         createdAt: new Date(baseDate.getTime() + 1 * 60 * 60 * 1000), // 1 hour later
         details: { 
-          cancelledBy: "admin@penginsign.com",
+          cancelledBy: "admin@fynosign.com",
           reason: "Document needs revision",
           status: "Cancelled"
         },
@@ -1193,7 +1193,7 @@ const addAuditTrailPage = async (pdfBytes, document, signatureData) => {
       color: lightGray,
     });
 
-    auditPage.drawText("Powered by PenginSign", {
+    auditPage.drawText("Powered by Fynosign", {
       x: margin,
       y: height - 990, // was -835
       size: 10,
