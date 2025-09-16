@@ -15,21 +15,66 @@ export function getClientIp(req) {
 }
 
 export async function getGeoLocation(ip) {
-  const token = process.env.IPINFO_TOKEN; // free tier exists
-  const res = await fetch(`https://ipinfo.io/${ip}?token=${token}`);
-  const data = await res.json();
+  try {
+    const token = process.env.IPINFO_TOKEN;
+    const url = `https://ipinfo.io/${ip}?token=${token}`;
 
-  if (!data) return null;
+    console.log(`Fetching geolocation for IP: ${ip}`);
+    const res = await fetch(url);
 
-  const [latitude, longitude] = data.loc.split(",");
+    if (!res.ok) {
+      console.warn(
+        `GeoLocation API failed with status: ${res.status} for IP: ${ip}`
+      );
+      return createFallbackGeoData(ip);
+    }
 
+    const data = await res.json();
+    console.log(`GeoLocation response for ${ip}:`, data);
+
+    if (!data) {
+      console.warn("Empty geolocation response");
+      return createFallbackGeoData(ip);
+    }
+
+    // Handle case where loc field might be missing or empty
+    let latitude = null;
+    let longitude = null;
+
+    if (data.loc && typeof data.loc === "string" && data.loc.includes(",")) {
+      const [lat, lng] = data.loc.split(",");
+      latitude = lat ? parseFloat(lat.trim()) : null;
+      longitude = lng ? parseFloat(lng.trim()) : null;
+    } else {
+      console.warn(`Invalid or missing loc field for IP ${ip}:`, data.loc);
+    }
+
+    return {
+      ip,
+      city: data.city || null,
+      region: data.region || null,
+      country: data.country || null,
+      latitude,
+      longitude,
+      timezone: data.timezone || null,
+      org: data.org || null,
+    };
+  } catch (error) {
+    console.error("GeoLocation error for IP", ip, ":", error.message);
+    return createFallbackGeoData(ip);
+  }
+}
+
+function createFallbackGeoData(ip) {
   return {
     ip,
-    city: data.city || null,
-    region: data.region || null,
-    country: data.country || null,
-    latitude: parseFloat(latitude),
-    longitude: parseFloat(longitude),
+    city: null,
+    region: null,
+    country: null,
+    latitude: null,
+    longitude: null,
+    timezone: null,
+    org: null,
   };
 }
 export function getDeviceInfo(req) {
