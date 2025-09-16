@@ -32,8 +32,10 @@ const signup = TryCatch(async (req, res, next) => {
   }
 
   const ip = getClientIp(req);
-  const location = getGeoLocation(ip);
+  const location = await getGeoLocation(ip);
   const deviceInfo = getDeviceInfo(req);
+
+  console.log("Location Info:", location);
 
   const hashedPassword = await bcrypt.hash(password, 8);
   const otp = generateOTP();
@@ -109,7 +111,7 @@ const login = TryCatch(async (req, res, next) => {
 
   // 🔹 Gather client environment details
   const ip = getClientIp(req);
-  const location = ip ? getGeoLocation(ip) : null;
+  const location = await getGeoLocation(ip);
   const device = getDeviceInfo(req);
 
   // 🔹 Store device + location in DB
@@ -119,9 +121,17 @@ const login = TryCatch(async (req, res, next) => {
       device: device ? JSON.stringify(device) : user.device,
       locations: location
         ? {
-            update: {
+            upsert: {
               where: { userId: user.id },
-              data: {
+              create: {
+                ip: location.ip,
+                city: location.city,
+                region: location.region,
+                country: location.country,
+                latitude: location.latitude,
+                longitude: location.longitude,
+              },
+              update: {
                 ip: location.ip,
                 city: location.city,
                 region: location.region,
