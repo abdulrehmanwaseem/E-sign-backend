@@ -70,7 +70,7 @@ export const getDashboardData = asyncHandler(async (req, res) => {
         orderBy: {
           createdAt: "desc",
         },
-        take: 3,
+        take: 6,
       }),
     ]);
 
