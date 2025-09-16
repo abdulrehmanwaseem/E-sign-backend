@@ -245,25 +245,33 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
 
     try {
       const parsed = JSON.parse(user.device);
-      const { browser, os } = parsed;
 
-      // 🖥 Desktop classification
-      if (os.includes("Windows") || browser === "Chrome") {
-        // Windows desktop → count as Android bucket
+      const browser = parsed.browser?.toLowerCase() || "";
+      const os = parsed.os?.toLowerCase() || "";
+      let classified = false;
+
+      // 🖥 Desktop → Bucket mapping
+      if (os.includes("windows") && browser === "chrome") {
         androidCount++;
-      } else if (os.includes("Mac") || browser.includes("Safari")) {
-        // macOS Safari desktop → count as iOS bucket
+        classified = true;
+      } else if (
+        os.includes("mac") &&
+        (browser.includes("safari") || browser === "chrome")
+      ) {
         iosCount++;
+        classified = true;
       }
 
-      // 📱 Mobile classification
-      else if (os === "Android") {
+      // 📱 Mobile → Bucket mapping
+      else if (os === "android") {
         androidCount++;
-      } else if (os === "iOS") {
+        classified = true;
+      } else if (os === "ios") {
         iosCount++;
+        classified = true;
       }
 
-      totalDevices++;
+      if (classified) totalDevices++;
     } catch (err) {
       console.error("Invalid device JSON:", user.device);
     }
