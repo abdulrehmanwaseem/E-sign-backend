@@ -46,12 +46,12 @@ export const getUserLibrary = asyncHandler(async (req, res) => {
 // @desc    Check if file exists by name for current user
 // @route   GET /api/dashboard/documents/check-exists?fileName=filename.pdf
 // @access  Private
-export const checkFileExists = asyncHandler(async (req, res) => {
+export const checkFileExists = asyncHandler(async (req, res, next) => {
   const { fileName } = req.query;
   const userId = req.user.id;
 
   if (!fileName) {
-    throw new ApiError("File name is required", 400);
+    return next(new ApiError("File name is required", 400));
   }
 
   const existingFile = await prisma.document.findFirst({
@@ -90,48 +90,50 @@ export const checkFileExists = asyncHandler(async (req, res) => {
 // @desc    Delete document from library
 // @route   DELETE /api/dashboard/documents/library/:id
 // @access  Private
-export const deleteDocumentFromLibrary = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
+export const deleteDocumentFromLibrary = asyncHandler(
+  async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user.id;
 
-  const document = await prisma.document.findFirst({
-    where: {
-      id: id,
-      createdById: userId,
-    },
-  });
+    const document = await prisma.document.findFirst({
+      where: {
+        id: id,
+        createdById: userId,
+      },
+    });
 
-  if (!document) {
-    throw new ApiError("Document not found", 404);
-  }
-
-  // Delete file from Cloudinary
-  try {
-    if (document.publicId) {
-      await deleteFileFromCloudinary(document.publicId);
+    if (!document) {
+      return next(new ApiError("Document not found", 404));
     }
-  } catch (error) {
-    console.error("Failed to delete file from Cloudinary:", error);
-    // Continue with database deletion even if Cloudinary deletion fails
+
+    // Delete file from Cloudinary
+    try {
+      if (document.publicId) {
+        await deleteFileFromCloudinary(document.publicId);
+      }
+    } catch (error) {
+      console.error("Failed to delete file from Cloudinary:", error);
+      // Continue with database deletion even if Cloudinary deletion fails
+    }
+
+    // Delete document from database
+    await prisma.document.delete({
+      where: {
+        id: id,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Document deleted successfully",
+    });
   }
-
-  // Delete document from database
-  await prisma.document.delete({
-    where: {
-      id: id,
-    },
-  });
-
-  res.status(200).json({
-    success: true,
-    message: "Document deleted successfully",
-  });
-});
+);
 
 // @desc    Create document and send for signing (Multi-recipient)
 // @route   POST /api/dashboard/documents/send-for-signing
 // @access  Private
-export const createAndSendDocument = asyncHandler(async (req, res) => {
+export const createAndSendDocument = asyncHandler(async (req, res, next) => {
   const recipients = JSON.parse(req.body.recipients); // Array of recipients
   const signatureFields = JSON.parse(req.body.signatureFields); // Each field has recipientEmail
 
@@ -146,18 +148,18 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
   const createdById = req.user.id;
 
   if (!recipients || recipients.length === 0) {
-    throw new ApiError("Recipients are required", 400);
+    return next(new ApiError("Recipients are required", 400));
   }
 
   if (!signatureFields || signatureFields.length === 0) {
-    throw new ApiError("Signature fields are required", 400);
+    return next(new ApiError("Signature fields are required", 400));
   }
 
   try {
     // Handle file upload (same as before)
     let cloudinaryResult = null;
     if (!existingFileUrl) {
-      if (!req.file) throw new ApiError("File is required", 400);
+      if (!req.file) return next(new ApiError("File is required", 400));
       cloudinaryResult = await uploadFileToCloudinary(req.file);
     } else {
       cloudinaryResult = {
@@ -229,9 +231,11 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
       );
 
       if (!recipient) {
-        throw new ApiError(
-          `Recipient not found for field: ${field.recipientEmail}`,
-          400
+        return next(
+          new ApiError(
+            `Recipient not found for field: ${field.recipientEmail}`,
+            400
+          )
         );
       }
 
@@ -328,14 +332,14 @@ export const createAndSendDocument = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Create and send document error:", error);
-    throw new ApiError("Failed to create and send document", 500);
+    return next(new ApiError("Failed to create and send document", 500));
   }
 });
 
 // @desc    Get all documents (updated to show recipient info)
 // @route   GET /api/dashboard/documents
 // @access  Private
-export const getDocuments = asyncHandler(async (req, res) => {
+export const getDocuments = asyncHandler(async (req, res, next) => {
   const { page = 1, limit = 10, status, search } = req.query;
   const createdById = req.user.id;
 
@@ -409,14 +413,14 @@ export const getDocuments = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Get documents error:", error);
-    throw new ApiError("Failed to fetch documents", 500);
+    return next(new ApiError("Failed to fetch documents", 500));
   }
 });
 
 // @desc    Get single document
 // @route   GET /api/dashboard/documents/:id
 // @access  Private
-export const getDocumentById = asyncHandler(async (req, res) => {
+export const getDocumentById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const createdById = req.user.id;
 
@@ -455,7 +459,7 @@ export const getDocumentById = asyncHandler(async (req, res) => {
     });
 
     if (!document) {
-      throw new ApiError("Document not found", 404);
+      return next(new ApiError("Document not found", 404));
     }
 
     res.status(200).json({
@@ -467,14 +471,14 @@ export const getDocumentById = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Get document error:", error);
-    throw new ApiError("Failed to fetch document", 500);
+    return next(new ApiError("Failed to fetch document", 500));
   }
 });
 
 // @desc    Get document for signing (works with recipient's access token)
 // @route   GET /api/dashboard/documents/sign/:accessToken
 // @access  Public
-export const getDocumentForSigning = asyncHandler(async (req, res) => {
+export const getDocumentForSigning = asyncHandler(async (req, res, next) => {
   const { accessToken } = req.params;
 
   try {
@@ -500,19 +504,19 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
     });
 
     if (!recipient) {
-      throw new ApiError("Document not found or access denied", 404);
+      return next(new ApiError("Document not found or access denied", 404));
     }
 
     const { document } = recipient;
 
     // Check if document is expired
     if (document.expiresAt && new Date() > document.expiresAt) {
-      throw new ApiError("Document has expired", 410);
+      return next(new ApiError("Document has expired", 410));
     }
 
     // Check if this recipient already signed
     if (recipient.status === "SIGNED") {
-      throw new ApiError("You have already signed this document", 400);
+      return next(new ApiError("You have already signed this document", 400));
     }
 
     // Update viewed status
@@ -562,7 +566,7 @@ export const getDocumentForSigning = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Get document for signing error:", error);
-    throw new ApiError("Failed to fetch document for signing", 500);
+    return next(new ApiError("Failed to fetch document for signing", 500));
   }
 });
 
@@ -586,14 +590,14 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
     });
 
     if (!recipient) {
-      throw new ApiError("Document not found or access denied", 404);
+      return next(new ApiError("Document not found or access denied", 404));
     }
 
     const { document } = recipient;
 
     // Check if already signed
     if (recipient.status === "SIGNED") {
-      throw new ApiError("You have already signed this document", 400);
+      return next(new ApiError("You have already signed this document", 400));
     }
 
     // Update signature fields with values
@@ -662,7 +666,7 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
 
         // Validate the generated PDF URL
         if (!signedPdfUrl || !signedPdfUrl.startsWith("http")) {
-          throw new Error("Invalid signed PDF URL generated");
+          return next(new ApiError("Invalid signed PDF URL generated", 500));
         }
       } catch (pdfError) {
         console.error("❌ PDF generation failed:", pdfError);
@@ -775,12 +779,12 @@ export const submitSignature = asyncHandler(async (req, res, next) => {
     });
   } catch (error) {
     console.error("Submit signature error:", error);
-    throw new ApiError("Failed to submit signature", 500);
+    return next(new ApiError("Failed to submit signature", 500));
   }
 });
 
 // Enhanced function to retry PDF generation for failed documents
-export const retryPdfGeneration = asyncHandler(async (req, res) => {
+export const retryPdfGeneration = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const createdById = req.user.id;
 
@@ -893,7 +897,7 @@ export const getDocumentAuditTrail = asyncHandler(async (req, res) => {
 // @desc    Delete document
 // @route   DELETE /api/dashboard/documents/:id
 // @access  Private
-export const deleteDocument = asyncHandler(async (req, res) => {
+export const deleteDocument = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const createdById = req.user.id;
 
@@ -907,7 +911,7 @@ export const deleteDocument = asyncHandler(async (req, res) => {
     });
 
     if (!document) {
-      throw new ApiError("Document not found or access denied", 404);
+      return next(new ApiError("Document not found or access denied", 404));
     }
 
     // Delete file from Cloudinary if it exists
@@ -935,14 +939,14 @@ export const deleteDocument = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Delete document error:", error);
-    throw new ApiError("Failed to delete document", 500);
+    return next(new ApiError("Failed to delete document", 500));
   }
 });
 
 // @desc    Cancel document
 // @route   PATCH /api/dashboard/documents/:id/cancel
 // @access  Private
-export const cancelDocument = asyncHandler(async (req, res) => {
+export const cancelDocument = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const createdById = req.user.id;
   console.log("TESTTT", req.params);
@@ -956,14 +960,16 @@ export const cancelDocument = asyncHandler(async (req, res) => {
     });
 
     if (!document) {
-      throw new ApiError("Document not found or access denied", 404);
+      return next(new ApiError("Document not found or access denied", 404));
     }
 
     // Check if document can be cancelled (only PENDING documents can be cancelled)
     if (document.status !== "PENDING") {
-      throw new ApiError(
-        `Cannot cancel document with status: ${document.status}`,
-        400
+      return next(
+        new ApiError(
+          `Cannot cancel document with status: ${document.status}`,
+          400
+        )
       );
     }
 
@@ -996,6 +1002,6 @@ export const cancelDocument = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Cancel document error:", error);
-    throw new ApiError("Failed to cancel document", 400);
+    return next(new ApiError("Failed to cancel document", 400));
   }
 });

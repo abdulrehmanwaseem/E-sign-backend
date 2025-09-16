@@ -5,7 +5,7 @@ import { ApiError } from "../utils/ApiError.js";
 // @desc    Get dashboard statistics and recent uploads
 // @route   GET /api/dashboard
 // @access  Private
-export const getDashboardData = asyncHandler(async (req, res) => {
+export const getDashboardData = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
 
   try {
@@ -103,6 +103,6 @@ export const getDashboardData = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Get dashboard data error:", error);
-    throw new ApiError("Failed to fetch dashboard data", 500);
+    return next(new ApiError("Failed to fetch dashboard data", 500));
   }
 });

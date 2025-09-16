@@ -8,13 +8,13 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 // @desc    Create Stripe Checkout session for pro plan
 // @route   POST /api/v1/payment/create-session
 // @access  Private
-export const createStripeSession = asyncHandler(async (req, res) => {
+export const createStripeSession = asyncHandler(async (req, res, next) => {
   try {
     // Only monthly plan available
     const priceId = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
 
     if (!priceId) {
-      throw new ApiError("Monthly price ID not configured", 500);
+      return next(new ApiError("Monthly price ID not configured", 500));
     }
 
     // Create or get customer
@@ -57,7 +57,7 @@ export const createStripeSession = asyncHandler(async (req, res) => {
     res.status(200).json({ success: true, url: session.url });
   } catch (error) {
     console.error("Stripe session error:", error);
-    throw new ApiError("Failed to create Stripe session", 500);
+    return next(new ApiError("Failed to create Stripe session", 500));
   }
 });
 
@@ -69,12 +69,15 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
   try {
     const sig = req.headers["stripe-signature"];
     if (!Buffer.isBuffer(req.body)) {
-      throw new Error(
-        "Webhook payload must be a Buffer. Check express.raw() middleware."
+      return next(
+        new ApiError(
+          "Webhook payload must be a Buffer. Check express.raw() middleware.",
+          400
+        )
       );
     }
     if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      throw new Error("Missing Stripe webhook secret");
+      return next(new ApiError("Missing Stripe webhook secret", 400));
     }
     event = stripe.webhooks.constructEvent(
       req.body,
@@ -95,9 +98,7 @@ export const stripeWebhook = asyncHandler(async (req, res) => {
 
       if (!email) {
         console.error("❌ No email found in session for PRO upgrade.");
-        return res
-          .status(400)
-          .json({ error: "Missing customer email in session" });
+        return next(new ApiError("Missing customer email in session", 400));
       }
 
       const thirtyDaysFromNow = new Date();
@@ -198,10 +199,10 @@ export const getSubscriptionDetails = asyncHandler(async (req, res) => {
 // @desc    Cancel Stripe subscription
 // @route   POST /api/v1/payment/cancel-subscription
 // @access  Private
-export const cancelProSubscription = asyncHandler(async (req, res) => {
+export const cancelProSubscription = asyncHandler(async (req, res, next) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user.stripeCustomerId) {
-    throw new ApiError("No Stripe customer found for user", 404);
+    return next(new ApiError("No Stripe customer found for user", 404));
   }
 
   // Find active subscription
@@ -212,7 +213,7 @@ export const cancelProSubscription = asyncHandler(async (req, res) => {
   });
 
   if (!subscriptions.data.length) {
-    throw new ApiError("No active subscription found", 404);
+    return next(new ApiError("No active subscription found", 404));
   }
 
   // Cancel at period end (don't immediately cancel)
@@ -229,20 +230,22 @@ export const cancelProSubscription = asyncHandler(async (req, res) => {
 // @desc    Create customer portal session
 // @route   POST /api/v1/payment/customer-portal
 // @access  Private
-export const createCustomerPortalSession = asyncHandler(async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+export const createCustomerPortalSession = asyncHandler(
+  async (req, res, next) => {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
 
-  if (!user.stripeCustomerId) {
-    throw new ApiError("No Stripe customer found", 404);
+    if (!user.stripeCustomerId) {
+      return next(new ApiError("No Stripe customer found", 404));
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: `${process.env.CLIENT_URL}/dashboard/billing`,
+    });
+
+    res.status(200).json({
+      success: true,
+      url: session.url,
+    });
   }
-
-  const session = await stripe.billingPortal.sessions.create({
-    customer: user.stripeCustomerId,
-    return_url: `${process.env.CLIENT_URL}/dashboard/billing`,
-  });
-
-  res.status(200).json({
-    success: true,
-    url: session.url,
-  });
-});
+);
