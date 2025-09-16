@@ -17,7 +17,7 @@ const handleOAuthCallback = async (req, res, provider) => {
 
   // 🔹 Gather environment details
   const ip = getClientIp(req);
-  const location = ip ? getGeoLocation(ip) : null;
+  const location = await getGeoLocation(ip);
   const device = getDeviceInfo(req);
 
   // 🔹 Save device + location in DB
@@ -28,6 +28,7 @@ const handleOAuthCallback = async (req, res, provider) => {
       locations: location
         ? {
             upsert: {
+              where: { userId: req.user.id },
               create: {
                 ip: location.ip,
                 city: location.city,
