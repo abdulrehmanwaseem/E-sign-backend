@@ -269,14 +269,6 @@ export const pickTemplate = asyncHandler(async (req, res, next) => {
       );
     }
 
-    // Mark as picked
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        isTemplatePicked: true,
-      },
-    });
-
     return res.status(200).json({
       success: true,
       message: "Template picked successfully",

@@ -247,13 +247,19 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
       const parsed = JSON.parse(user.device);
       const { browser, os } = parsed;
 
-      // Chrome + Windows → Android
-      if (browser === "Chrome" || os === "Windows") {
+      // 🖥 Desktop classification
+      if (os.includes("Windows") || browser === "Chrome") {
+        // Windows desktop → count as Android bucket
         androidCount++;
+      } else if (os.includes("Mac") || browser.includes("Safari")) {
+        // macOS Safari desktop → count as iOS bucket
+        iosCount++;
       }
 
-      // Safari + Mac → iOS
-      else if (browser === "Safari" || os === "Mac") {
+      // 📱 Mobile classification
+      else if (os === "Android") {
+        androidCount++;
+      } else if (os === "iOS") {
         iosCount++;
       }
 

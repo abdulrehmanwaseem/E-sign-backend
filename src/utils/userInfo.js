@@ -14,20 +14,24 @@ export function getClientIp(req) {
   return ip;
 }
 
-export function getGeoLocation(ip) {
-  const geo = geoip.lookup(ip);
-  if (!geo) return null;
+export async function getGeoLocation(ip) {
+  const token = process.env.IPINFO_TOKEN; // free tier exists
+  const res = await fetch(`https://ipinfo.io/${ip}?token=${token}`);
+  const data = await res.json();
+
+  if (!data) return null;
+
+  const [latitude, longitude] = data.loc.split(",");
 
   return {
     ip,
-    city: geo.city || null,
-    region: geo.region || null,
-    country: geo.country || null,
-    latitude: geo.ll ? geo.ll[0] : null,
-    longitude: geo.ll ? geo.ll[1] : null,
+    city: data.city || null,
+    region: data.region || null,
+    country: data.country || null,
+    latitude: parseFloat(latitude),
+    longitude: parseFloat(longitude),
   };
 }
-
 export function getDeviceInfo(req) {
   const ua = req.headers["user-agent"];
   if (!ua) return null;
@@ -37,6 +41,6 @@ export function getDeviceInfo(req) {
   return {
     browser: agent.family,
     os: agent.os.family,
-    device: agent.device.family || "Desktop",
+    device: agent.device.family || "Other",
   };
 }
