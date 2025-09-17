@@ -32,7 +32,9 @@ const signup = TryCatch(async (req, res, next) => {
   }
 
   const ip = getClientIp(req);
+  const location = await getGeoLocation(ip);
   const deviceInfo = getDeviceInfo(req);
+
   const hashedPassword = await bcrypt.hash(password, 8);
   const otp = generateOTP();
   const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
@@ -41,7 +43,6 @@ const signup = TryCatch(async (req, res, next) => {
     email
   )}`;
 
-  // 🚀 PERFORMANCE FIX: Create user immediately without waiting for geolocation
   const createdUser = await prisma.user.create({
     data: {
       email,
@@ -51,7 +52,18 @@ const signup = TryCatch(async (req, res, next) => {
       otp,
       otpExpires,
       device: deviceInfo ? JSON.stringify(deviceInfo) : null,
-      // Remove geolocation from initial creation to prevent blocking
+      locations: location
+        ? {
+            create: {
+              ip: location.ip,
+              city: location.city,
+              region: location.region,
+              country: location.country,
+              latitude: location.latitude,
+              longitude: location.longitude,
+            },
+          }
+        : undefined,
     },
     select: {
       id: true,
@@ -64,60 +76,17 @@ const signup = TryCatch(async (req, res, next) => {
     },
   });
 
-  // 🌍 Process geolocation and email asynchronously (non-blocking)
-  setImmediate(async () => {
-    try {
-      console.log(
-        `📍 Starting async geolocation lookup for user ${createdUser.id}`
-      );
+  try {
+    await sendOTPEmail(email, otp);
+  } catch (error) {
+    console.error("Failed to send OTP email:", error);
+  }
 
-      // Get geolocation with 5-second timeout
-      const location = await getGeoLocation(ip, 5000);
-      console.log("Location Info:", location);
-
-      // Save location data to database (async)
-      if (location && location.ip) {
-        await prisma.userLocation.create({
-          data: {
-            userId: createdUser.id,
-            ip: location.ip,
-            city: location.city,
-            region: location.region,
-            country: location.country,
-            latitude: location.latitude,
-            longitude: location.longitude,
-          },
-        });
-        console.log(`✅ Location saved for user ${createdUser.id}`);
-      }
-    } catch (locationError) {
-      console.error(
-        `❌ Geolocation failed for user ${createdUser.id}:`,
-        locationError
-      );
-    }
-
-    // Send OTP email (async)
-    try {
-      console.log(`📧 Sending OTP email to ${email}`);
-      await sendOTPEmail(email, otp);
-      console.log(`✅ OTP email sent successfully to ${email}`);
-    } catch (emailError) {
-      console.error(`❌ Failed to send OTP email to ${email}:`, emailError);
-      // Email failure is logged but doesn't block user creation
-    }
-  });
-
-  // 🎯 Return response immediately (without waiting for geolocation/email)
   res.status(201).json({
     status: "success",
     message:
-      "User registered successfully. Please check your email for the OTP verification code.",
+      "User registered successfully. Please verify your email with the OTP sent.",
     user: createdUser,
-    asyncProcessing: {
-      geolocation: "processing",
-      emailOTP: "sending",
-    },
   });
 });
 
@@ -269,21 +238,17 @@ const resendOTP = TryCatch(async (req, res, next) => {
     data: { otp, otpExpires },
   });
 
-  // 🚀 Send OTP email asynchronously (non-blocking)
-  setImmediate(async () => {
-    try {
-      console.log(`📧 Resending OTP email to ${email}`);
-      await sendOTPEmail(email, otp);
-      console.log(`✅ OTP email resent successfully to ${email}`);
-    } catch (emailError) {
-      console.error(`❌ Failed to resend OTP email to ${email}:`, emailError);
-    }
-  });
+  // Send OTP email
+  try {
+    await sendOTPEmail(email, otp);
+  } catch (error) {
+    console.error("Failed to send OTP email:", error);
+    return next(new ApiError("Failed to send OTP email", 500));
+  }
 
   res.status(200).json({
     status: "success",
-    message: "OTP resent successfully. Please check your email.",
-    emailStatus: "sending",
+    message: "OTP sent successfully",
   });
 });
 

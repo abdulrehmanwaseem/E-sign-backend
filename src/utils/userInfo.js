@@ -14,7 +14,7 @@ export function getClientIp(req) {
   return ip;
 }
 
-export async function getGeoLocation(ip, timeout = 5000) {
+export async function getGeoLocation(ip) {
   try {
     const token = process.env.IPINFO_TOKEN;
 
@@ -23,65 +23,42 @@ export async function getGeoLocation(ip, timeout = 5000) {
       const url = `https://ipinfo.io/${ip}?token=${token}`;
 
       console.log(`Fetching geolocation for IP: ${ip} using ipinfo.io`);
+      const res = await fetch(url);
 
-      // 🚀 Add timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      if (res.ok) {
+        const data = await res.json();
+        console.log(`GeoLocation response for ${ip}:`, data);
 
-      try {
-        const res = await fetch(url, {
-          signal: controller.signal,
-          timeout: timeout,
-        });
-        clearTimeout(timeoutId);
+        if (data && !data.error) {
+          // Handle case where loc field might be missing or empty
+          let latitude = null;
+          let longitude = null;
 
-        if (res.ok) {
-          const data = await res.json();
-          console.log(`GeoLocation response for ${ip}:`, data);
-
-          if (data && !data.error) {
-            // Handle case where loc field might be missing or empty
-            let latitude = null;
-            let longitude = null;
-
-            if (
-              data.loc &&
-              typeof data.loc === "string" &&
-              data.loc.includes(",")
-            ) {
-              const [lat, lng] = data.loc.split(",");
-              latitude = lat ? parseFloat(lat.trim()) : null;
-              longitude = lng ? parseFloat(lng.trim()) : null;
-            }
-
-            return {
-              ip,
-              city: data.city || null,
-              region: data.region || null,
-              country: data.country || null,
-              latitude,
-              longitude,
-              timezone: data.timezone || null,
-              org: data.org || null,
-            };
+          if (
+            data.loc &&
+            typeof data.loc === "string" &&
+            data.loc.includes(",")
+          ) {
+            const [lat, lng] = data.loc.split(",");
+            latitude = lat ? parseFloat(lat.trim()) : null;
+            longitude = lng ? parseFloat(lng.trim()) : null;
           }
-        } else {
-          console.warn(
-            `ipinfo.io API failed with status: ${res.status} for IP: ${ip}. Falling back to geoip-lite.`
-          );
+
+          return {
+            ip,
+            city: data.city || null,
+            region: data.region || null,
+            country: data.country || null,
+            latitude,
+            longitude,
+            timezone: data.timezone || null,
+            org: data.org || null,
+          };
         }
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        if (fetchError.name === "AbortError") {
-          console.warn(
-            `ipinfo.io API timeout after ${timeout}ms for IP: ${ip}. Falling back to geoip-lite.`
-          );
-        } else {
-          console.warn(
-            `ipinfo.io API error for IP: ${ip}:`,
-            fetchError.message
-          );
-        }
+      } else {
+        console.warn(
+          `ipinfo.io API failed with status: ${res.status} for IP: ${ip}. Falling back to geoip-lite.`
+        );
       }
     } else {
       console.log(`No ipinfo.io token found. Using geoip-lite for IP: ${ip}`);
