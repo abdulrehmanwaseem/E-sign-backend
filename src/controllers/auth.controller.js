@@ -32,11 +32,7 @@ const signup = TryCatch(async (req, res, next) => {
   }
 
   const ip = getClientIp(req);
-  const location = await getGeoLocation(ip);
   const deviceInfo = getDeviceInfo(req);
-
-  console.log("Location Info:", location);
-
   const hashedPassword = await bcrypt.hash(password, 8);
   const otp = generateOTP();
   const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
@@ -45,6 +41,7 @@ const signup = TryCatch(async (req, res, next) => {
     email
   )}`;
 
+  // 🚀 PERFORMANCE FIX: Create user immediately without waiting for geolocation
   const createdUser = await prisma.user.create({
     data: {
       email,
@@ -54,18 +51,7 @@ const signup = TryCatch(async (req, res, next) => {
       otp,
       otpExpires,
       device: deviceInfo ? JSON.stringify(deviceInfo) : null,
-      locations: location
-        ? {
-            create: {
-              ip: location.ip,
-              city: location.city,
-              region: location.region,
-              country: location.country,
-              latitude: location.latitude,
-              longitude: location.longitude,
-            },
-          }
-        : undefined,
+      // Remove geolocation from initial creation to prevent blocking
     },
     select: {
       id: true,
@@ -78,17 +64,60 @@ const signup = TryCatch(async (req, res, next) => {
     },
   });
 
-  try {
-    await sendOTPEmail(email, otp);
-  } catch (error) {
-    console.error("Failed to send OTP email:", error);
-  }
+  // 🌍 Process geolocation and email asynchronously (non-blocking)
+  setImmediate(async () => {
+    try {
+      console.log(
+        `📍 Starting async geolocation lookup for user ${createdUser.id}`
+      );
 
+      // Get geolocation with 5-second timeout
+      const location = await getGeoLocation(ip, 5000);
+      console.log("Location Info:", location);
+
+      // Save location data to database (async)
+      if (location && location.ip) {
+        await prisma.userLocation.create({
+          data: {
+            userId: createdUser.id,
+            ip: location.ip,
+            city: location.city,
+            region: location.region,
+            country: location.country,
+            latitude: location.latitude,
+            longitude: location.longitude,
+          },
+        });
+        console.log(`✅ Location saved for user ${createdUser.id}`);
+      }
+    } catch (locationError) {
+      console.error(
+        `❌ Geolocation failed for user ${createdUser.id}:`,
+        locationError
+      );
+    }
+
+    // Send OTP email (async)
+    try {
+      console.log(`📧 Sending OTP email to ${email}`);
+      await sendOTPEmail(email, otp);
+      console.log(`✅ OTP email sent successfully to ${email}`);
+    } catch (emailError) {
+      console.error(`❌ Failed to send OTP email to ${email}:`, emailError);
+      // Email failure is logged but doesn't block user creation
+    }
+  });
+
+  // 🎯 Return response immediately (without waiting for geolocation/email)
   res.status(201).json({
     status: "success",
     message:
-      "User registered successfully. Please verify your email with the OTP sent.",
+      "User registered successfully. Please check your email for the OTP verification code.",
     user: createdUser,
+    asyncProcessing: {
+      geolocation: "processing",
+      emailOTP: "sending",
+    },
   });
 });
 
