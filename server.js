@@ -6,12 +6,12 @@ import { connectToDB } from "./src/config/dbConnection.js";
 import { deleteExpiredFreeUserDocuments } from "./src/utils/deleteExpiredRetentionDocs.js";
 
 const PORT = process.env.PORT || 5000;
-const BASE_URL = process.env.BASE_URL;
+const API_URL = process.env.API_URL;
 
 // Ping self every 10 minutes
 cron.schedule("*/10 * * * *", async () => {
   try {
-    const res = await fetch(`${BASE_URL}/health`);
+    const res = await fetch(`${API_URL}/health`);
     console.log(
       `Pinged self at ${new Date().toISOString()} - Status: ${res.status}`
     );

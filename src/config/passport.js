@@ -9,7 +9,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/api/v1/oauth/google/callback",
+      callbackURL: `${process.env.API_URL}/api/v1/oauth/google/callback`,
       scope: ["profile", "email"],
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -67,7 +67,7 @@ passport.use(
       teamID: process.env.APPLE_TEAM_ID,
       keyID: process.env.APPLE_KEY_ID,
       privateKeyLocation: process.env.APPLE_PRIVATE_KEY_PATH,
-      callbackURL: "/api/v1/oauth/apple/callback",
+      callbackURL: `${process.env.API_URL}/api/v1/oauth/apple/callback`,
       passReqToCallback: true,
     },
     async (req, accessToken, refreshToken, idToken, profile, done) => {

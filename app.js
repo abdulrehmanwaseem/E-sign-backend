@@ -37,6 +37,7 @@ cloudinary.config({
 app.use(cors(corsOptions));
 app.use(compression());
 app.use(cookieParser());
+app.set("trust proxy", 1);
 
 // Priority: Payment routes (Stripe webhook) before body parsers
 app.use("/api/v1/payment", paymentRoutes);
