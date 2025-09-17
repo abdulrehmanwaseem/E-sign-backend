@@ -156,7 +156,7 @@ export const createAndSendDocument = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    // Handle file upload (same as before)
+    // Handle file upload
     let cloudinaryResult = null;
     if (!existingFileUrl) {
       if (!req.file) return next(new ApiError("File is required", 400));
@@ -169,7 +169,7 @@ export const createAndSendDocument = asyncHandler(async (req, res, next) => {
       };
     }
 
-    // Create document (same as before)
+    // Create document
     let document;
     if (existingFileUrl) {
       document = await prisma.document.create({
@@ -207,28 +207,21 @@ export const createAndSendDocument = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Create recipients for this document (OPTIMIZED: Bulk insert)
-    const recipientData = recipients.map((recipient) => ({
-      documentId: document.id,
-      name: recipient.name,
-      email: recipient.email.toLowerCase(),
-      phone: recipient.phone || null,
-      accessToken: crypto.randomUUID(),
-      status: "PENDING",
-    }));
-
-    // Use createMany for bulk insert (much faster)
-    await prisma.documentRecipient.createMany({
-      data: recipientData,
-    });
-
-    // Get created recipients with their IDs
-    const createdRecipients = await prisma.documentRecipient.findMany({
-      where: {
-        documentId: document.id,
-        email: { in: recipients.map((r) => r.email.toLowerCase()) },
-      },
-    });
+    // Create recipients for this document
+    const createdRecipients = await Promise.all(
+      recipients.map(async (recipient) => {
+        return await prisma.documentRecipient.create({
+          data: {
+            documentId: document.id,
+            name: recipient.name,
+            email: recipient.email.toLowerCase(),
+            phone: recipient.phone || null,
+            accessToken: crypto.randomUUID(),
+            status: "PENDING",
+          },
+        });
+      })
+    );
 
     // Create signature fields with recipient assignment
     const fieldsData = signatureFields.map((field) => {
@@ -263,7 +256,6 @@ export const createAndSendDocument = asyncHandler(async (req, res, next) => {
       data: fieldsData,
     });
 
-    // Mark template as picked if applicable
     if (
       req.user.userType !== "PRO" &&
       !req.user.isTemplatePicked &&
@@ -277,7 +269,41 @@ export const createAndSendDocument = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Log document creation immediately
+    // Send emails to all recipients (parallel signing)
+    const emailPromises = createdRecipients.map(async (recipient) => {
+      try {
+        await sendSigningInvitation(
+          recipient,
+          document,
+          req.user,
+          customRecipientMessage
+        );
+
+        // Log activity for each recipient
+        await prisma.documentActivity.create({
+          data: {
+            documentId: document.id,
+            recipientId: recipient.id,
+            action: "SENT",
+            ipAddress: req.ip,
+            userAgent: req.get("User-Agent"),
+            details: {
+              recipientEmail: recipient.email,
+              totalRecipients: createdRecipients.length,
+            },
+          },
+        });
+      } catch (emailError) {
+        console.error(
+          `Failed to send email to ${recipient.email}:`,
+          emailError
+        );
+      }
+    });
+
+    await Promise.allSettled(emailPromises);
+
+    // Log document creation
     await prisma.documentActivity.create({
       data: {
         documentId: document.id,
@@ -291,75 +317,9 @@ export const createAndSendDocument = asyncHandler(async (req, res, next) => {
       },
     });
 
-    // 🚀 PERFORMANCE FIX: Send emails asynchronously (non-blocking)
-    setImmediate(async () => {
-      console.log(
-        `📧 Starting async email sending for document ${document.id}`
-      );
-
-      const emailPromises = createdRecipients.map(async (recipient) => {
-        try {
-          await sendSigningInvitation(
-            recipient,
-            document,
-            req.user,
-            customRecipientMessage
-          );
-
-          // Log activity for each recipient
-          await prisma.documentActivity.create({
-            data: {
-              documentId: document.id,
-              recipientId: recipient.id,
-              action: "SENT",
-              ipAddress: req.ip,
-              userAgent: req.get("User-Agent"),
-              details: {
-                recipientEmail: recipient.email,
-                totalRecipients: createdRecipients.length,
-              },
-            },
-          });
-
-          console.log(`✅ Email sent successfully to ${recipient.email}`);
-        } catch (emailError) {
-          console.error(
-            `❌ Failed to send email to ${recipient.email}:`,
-            emailError
-          );
-
-          // Log failed email attempt
-          await prisma.documentActivity.create({
-            data: {
-              documentId: document.id,
-              recipientId: recipient.id,
-              action: "EMAIL_FAILED",
-              ipAddress: req.ip,
-              userAgent: req.get("User-Agent"),
-              details: {
-                recipientEmail: recipient.email,
-                error: emailError.message,
-              },
-            },
-          });
-        }
-      });
-
-      try {
-        await Promise.allSettled(emailPromises);
-        console.log(`🎉 All emails processed for document ${document.id}`);
-      } catch (error) {
-        console.error(
-          `📧 Email batch processing error for document ${document.id}:`,
-          error
-        );
-      }
-    });
-
-    // 🎯 Return response immediately (without waiting for emails)
     res.status(201).json({
       success: true,
-      message: "Document created and queued for sending successfully",
+      message: "Document created and sent for signing successfully",
       data: {
         documentId: document.id,
         recipients: createdRecipients.map((r) => ({
@@ -368,7 +328,6 @@ export const createAndSendDocument = asyncHandler(async (req, res, next) => {
           status: r.status,
           signingUrl: `${process.env.CLIENT_URL}/signing/${r.accessToken}`,
         })),
-        emailStatus: "queued", // Indicate emails are being sent asynchronously
       },
     });
   } catch (error) {
