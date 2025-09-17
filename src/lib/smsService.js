@@ -16,11 +16,8 @@ export const sendPhoneOTP = async (phoneNumber, customOtp = null) => {
     throw new Error("SMS service is not configured");
   }
 
+  // Phone number should already be validated and formatted by the controller
   const formattedPhone = formatPhoneNumber(phoneNumber);
-
-  if (!validatePhoneNumber(formattedPhone)) {
-    throw new Error("Invalid phone number format");
-  }
 
   console.log(`Sending OTP to: ${formattedPhone}`);
 
@@ -56,6 +53,7 @@ export const twilioVerifyOTP = async (phoneNumber, code) => {
     throw new Error("SMS service is not configured");
   }
 
+  // Phone number should already be validated and formatted by the controller
   const formattedPhone = formatPhoneNumber(phoneNumber);
 
   console.log(`Verifying OTP for: ${formattedPhone} with code: ${code}`);

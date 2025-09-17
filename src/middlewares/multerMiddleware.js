@@ -4,12 +4,22 @@ import crypto from "crypto";
 
 // File filter function
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ["application/pdf"];
+  const allowedTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+  ];
 
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid file type. Only PDF files are allowed."), false);
+    cb(
+      new Error("Invalid file type. Only PDF & Image files are allowed."),
+      false
+    );
   }
 };
 
