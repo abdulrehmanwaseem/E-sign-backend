@@ -269,17 +269,21 @@ const resendOTP = TryCatch(async (req, res, next) => {
     data: { otp, otpExpires },
   });
 
-  // Send OTP email
-  try {
-    await sendOTPEmail(email, otp);
-  } catch (error) {
-    console.error("Failed to send OTP email:", error);
-    return next(new ApiError("Failed to send OTP email", 500));
-  }
+  // 🚀 Send OTP email asynchronously (non-blocking)
+  setImmediate(async () => {
+    try {
+      console.log(`📧 Resending OTP email to ${email}`);
+      await sendOTPEmail(email, otp);
+      console.log(`✅ OTP email resent successfully to ${email}`);
+    } catch (emailError) {
+      console.error(`❌ Failed to resend OTP email to ${email}:`, emailError);
+    }
+  });
 
   res.status(200).json({
     status: "success",
-    message: "OTP sent successfully",
+    message: "OTP resent successfully. Please check your email.",
+    emailStatus: "sending",
   });
 });
 

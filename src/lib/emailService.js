@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-// Create transporter using Brevo SMTP
+// Create transporter using Brevo SMTP with timeout configuration
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp-relay.brevo.com",
   port: parseInt(process.env.SMTP_PORT) || 587,
@@ -9,16 +9,108 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER || "93e6cb001@smtp-brevo.com",
     pass: process.env.SMTP_PASS || "ZsU4nDORV1NHPKdj",
   },
+  // 🚀 Add timeout configurations for Render.com
+  connectionTimeout: 15000, // 15 seconds connection timeout (increased)
+  greetingTimeout: 10000, // 10 seconds greeting timeout (increased)
+  socketTimeout: 60000, // 60 seconds socket timeout (increased)
+  // Add pool configuration for better connection handling
+  pool: true,
+  maxConnections: 3, // Reduced for stability
+  maxMessages: 50, // Reduced for stability
+  rateLimit: 5, // Reduced rate for Render.com
+  // Add TLS options for better compatibility
+  tls: {
+    rejectUnauthorized: false, // For development/compatibility
+  },
 });
 
-// Verify connection configuration
+// Alternative transporter for fallback (using Gmail SMTP as backup)
+const backupTransporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.BACKUP_EMAIL_USER,
+    pass: process.env.BACKUP_EMAIL_PASS,
+  },
+  connectionTimeout: 15000,
+  greetingTimeout: 10000,
+  socketTimeout: 60000,
+});
+
+// Verify connection configuration with error handling
 transporter.verify(function (error, success) {
   if (error) {
-    console.log("SMTP connection error:", error);
+    console.log("Primary SMTP connection error:", error);
+    console.log("Will use retry mechanism for reliability");
   } else {
-    console.log("SMTP server is ready to take our messages");
+    console.log("Primary SMTP server is ready to take our messages");
   }
 });
+
+// Helper function to send email with retry mechanism and fallback
+async function sendEmailWithRetry(
+  mailOptions,
+  maxRetries = 3,
+  retryDelay = 3000
+) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(
+        `📧 Email attempt ${attempt}/${maxRetries} to ${mailOptions.to}`
+      );
+
+      // Try primary transporter first
+      const result = await transporter.sendMail(mailOptions);
+      console.log(
+        `✅ Email sent successfully on attempt ${attempt}:`,
+        result.messageId
+      );
+      return result;
+    } catch (error) {
+      console.error(
+        `❌ Primary email attempt ${attempt} failed:`,
+        error.message
+      );
+
+      // Try backup transporter on last attempt if credentials are available
+      if (
+        attempt === maxRetries &&
+        process.env.BACKUP_EMAIL_USER &&
+        process.env.BACKUP_EMAIL_PASS
+      ) {
+        try {
+          console.log("🔄 Trying backup email service...");
+          const backupResult = await backupTransporter.sendMail(mailOptions);
+          console.log(
+            "✅ Backup email sent successfully:",
+            backupResult.messageId
+          );
+          return backupResult;
+        } catch (backupError) {
+          console.error("❌ Backup email also failed:", backupError.message);
+        }
+      }
+
+      // Don't retry on certain errors
+      if (error.code === "EAUTH" || error.responseCode >= 500) {
+        console.error(
+          `🚫 Non-retryable error (${error.code}), aborting retries`
+        );
+        throw error;
+      }
+
+      // If this was the last attempt, throw the error
+      if (attempt === maxRetries) {
+        console.error(`🚨 All ${maxRetries} email attempts failed`);
+        throw error;
+      }
+
+      // Wait before retrying (exponential backoff)
+      const delay = retryDelay * Math.pow(1.5, attempt - 1);
+      console.log(`⏳ Waiting ${delay}ms before retry...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
 
 /**
  * Send signing invitation (same as before, works for single or multiple recipients)
@@ -60,7 +152,8 @@ export const sendSigningInvitation = async (
       html: htmlTemplate,
     };
 
-    const result = await transporter.sendMail(mailOptions);
+    // 🚀 Use retry mechanism for better reliability
+    const result = await sendEmailWithRetry(mailOptions, 3, 2000);
     console.log("Signing invitation sent successfully:", result.messageId);
     return result;
   } catch (error) {
@@ -385,12 +478,18 @@ export const sendOTPEmail = async (email, otp) => {
       html: htmlTemplate,
     };
 
-    const result = await transporter.sendMail(mailOptions);
+    // 🚀 Use retry mechanism for better reliability
+    const result = await sendEmailWithRetry(mailOptions, 3, 2000);
     console.log("OTP email sent successfully:", result.messageId);
     return result;
   } catch (error) {
     console.error("Error sending OTP email:", error);
-    throw new Error("Failed to send OTP email");
+    // Don't throw error to prevent blocking user registration
+    // Just log it for monitoring
+    console.error(
+      "🚨 OTP email delivery failed, but user registration will continue"
+    );
+    return null;
   }
 };
 
