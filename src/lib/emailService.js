@@ -2,12 +2,13 @@ import nodemailer from "nodemailer";
 
 // Create transporter using Brevo SMTP
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp-relay.brevo.com",
+  host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT) || 587,
   secure: false, // Use TLS
+  requireTLS: true, // enforce TLS upgrade
   auth: {
-    user: process.env.SMTP_USER || "93e6cb001@smtp-brevo.com",
-    pass: process.env.SMTP_PASS || "ZsU4nDORV1NHPKdj",
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 

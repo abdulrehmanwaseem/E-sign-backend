@@ -108,17 +108,21 @@ model Document {
 }
 
 model DocumentRecipient {
-  id          String             @id @default(cuid())
-  name        String
-  email       String
-  phone       String?
-  accessToken String             @unique @default(cuid())
-  signedAt    DateTime?
-  viewedAt    DateTime?
-  documentId  String
-  status      String             @default("PENDING") // PENDING, SIGNED
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id                       String             @id @default(cuid())
+  name                     String
+  email                    String
+  phone                    String?
+  phoneVerificationRequired Boolean           @default(false)
+  isPhoneVerified          Boolean           @default(false)
+  phoneOtp                 String?
+  phoneOtpExpires          DateTime?
+  accessToken              String             @unique @default(cuid())
+  signedAt                 DateTime?
+  viewedAt                 DateTime?
+  documentId               String
+  status                   String             @default("PENDING") // PENDING, SIGNED
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   // Relations
   document   Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)

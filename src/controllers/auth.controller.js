@@ -350,7 +350,21 @@ const verifyPhoneOTP = TryCatch(async (req, res, next) => {
   }
 
   if (user.isPhoneVerified) {
-    return next(new ApiError("Phone number already verified", 400));
+    // Phone is already verified - return success instead of error
+    return res.status(200).json({
+      status: "success",
+      message: "Phone number already verified",
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          isPhoneVerified: true,
+        },
+      },
+    });
   }
 
   // Use Twilio Verify service to verify OTP
@@ -411,7 +425,21 @@ const resendPhoneOTP = TryCatch(async (req, res, next) => {
   }
 
   if (user.isPhoneVerified) {
-    return next(new ApiError("Phone number already verified", 400));
+    // Phone is already verified - return success instead of error
+    return res.status(200).json({
+      status: "success",
+      message: "Phone number already verified",
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          phone: user.phone,
+          isPhoneVerified: true,
+        },
+      },
+    });
   }
 
   // Send SMS OTP using Twilio Verify (no need to generate/store OTP manually)

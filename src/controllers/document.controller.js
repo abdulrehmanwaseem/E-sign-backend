@@ -10,6 +10,11 @@ import {
   sendDocumentOpenedNotification,
   sendSigningInvitation,
 } from "../lib/emailService.js";
+import {
+  sendPhoneOTP,
+  twilioVerifyOTP,
+  cancelPhoneVerification,
+} from "../lib/smsService.js";
 import { ApiError } from "../utils/ApiError.js";
 import { createSignedPDF } from "../utils/pdfUtils.js";
 
@@ -216,6 +221,8 @@ export const createAndSendDocument = asyncHandler(async (req, res, next) => {
             name: recipient.name,
             email: recipient.email.toLowerCase(),
             phone: recipient.phone || null,
+            phoneVerificationRequired:
+              recipient.phoneVerificationRequired || false,
             accessToken: crypto.randomUUID(),
             status: "PENDING",
           },
@@ -519,6 +526,28 @@ export const getDocumentForSigning = asyncHandler(async (req, res, next) => {
       return next(new ApiError("You have already signed this document", 400));
     }
 
+    // Check phone verification requirement
+    if (recipient.phoneVerificationRequired && !recipient.isPhoneVerified) {
+      return res.status(200).json({
+        success: true,
+        requiresPhoneVerification: true,
+        data: {
+          recipient: {
+            id: recipient.id,
+            name: recipient.name,
+            email: recipient.email,
+            phone: recipient.phone,
+            phoneVerificationRequired: recipient.phoneVerificationRequired,
+            isPhoneVerified: recipient.isPhoneVerified,
+          },
+          document: {
+            id: document.id,
+            name: document.name,
+          },
+        },
+      });
+    }
+
     // Update viewed status
     if (!recipient.viewedAt) {
       await prisma.documentRecipient.update({
@@ -561,6 +590,9 @@ export const getDocumentForSigning = asyncHandler(async (req, res, next) => {
           id: recipient.id,
           name: recipient.name,
           email: recipient.email,
+          phone: recipient.phone,
+          phoneVerificationRequired: recipient.phoneVerificationRequired,
+          isPhoneVerified: recipient.isPhoneVerified,
         },
       },
     });
@@ -1003,5 +1035,287 @@ export const cancelDocument = asyncHandler(async (req, res, next) => {
   } catch (error) {
     console.error("Cancel document error:", error);
     return next(new ApiError("Failed to cancel document", 400));
+  }
+});
+
+// @desc    Send phone verification OTP for document signing
+// @route   POST /api/dashboard/documents/verify-phone/send-otp
+// @access  Public (uses accessToken)
+export const sendPhoneVerificationOTP = asyncHandler(async (req, res, next) => {
+  const { accessToken } = req.body;
+
+  if (!accessToken) {
+    return next(new ApiError("Access token is required", 400));
+  }
+
+  try {
+    // Find recipient by access token
+    const recipient = await prisma.documentRecipient.findUnique({
+      where: { accessToken },
+      include: {
+        document: {
+          select: {
+            name: true,
+            status: true,
+            expiresAt: true,
+          },
+        },
+      },
+    });
+
+    if (!recipient) {
+      return next(new ApiError("Invalid access token", 404));
+    }
+
+    // Check if phone verification is required
+    if (!recipient.phoneVerificationRequired) {
+      return next(
+        new ApiError("Phone verification not required for this document", 400)
+      );
+    }
+
+    // Check if phone number exists
+    if (!recipient.phone) {
+      return next(
+        new ApiError("No phone number associated with this recipient", 400)
+      );
+    }
+
+    // Check if document is expired
+    if (
+      recipient.document.expiresAt &&
+      new Date() > recipient.document.expiresAt
+    ) {
+      return next(new ApiError("Document has expired", 400));
+    }
+
+    // Send OTP using Twilio Verify service (it handles OTP generation)
+    try {
+      // First, cancel any existing verification for this phone number
+      await cancelPhoneVerification(recipient.phone);
+
+      // Now send a fresh OTP
+      const verifyResult = await sendPhoneOTP(recipient.phone);
+
+      if (!verifyResult.success) {
+        return next(new ApiError("Failed to send verification code", 500));
+      }
+
+      // Handle case where phone is already verified
+      if (verifyResult.skipVerification) {
+        // Mark recipient as verified since Twilio says it's already verified
+        await prisma.documentRecipient.update({
+          where: { id: recipient.id },
+          data: {
+            isPhoneVerified: true,
+            phoneOtp: null,
+            phoneOtpExpires: null,
+          },
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: "Phone number already verified",
+          data: {
+            phoneVerified: true,
+            alreadyVerified: true,
+          },
+        });
+      }
+
+      // Store verification details in database for tracking
+      await prisma.documentRecipient.update({
+        where: { id: recipient.id },
+        data: {
+          phoneOtp: verifyResult.sid, // Store Twilio verification SID instead of OTP
+          phoneOtpExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+        },
+      });
+    } catch (smsError) {
+      console.error("SMS sending failed:", smsError);
+      return next(new ApiError("Failed to send verification code", 500));
+    }
+    res.status(200).json({
+      success: true,
+      message: "Verification code sent successfully",
+      data: {
+        phoneLastFourDigits: recipient.phone.slice(-4),
+        expiresIn: 600, // 10 minutes in seconds
+      },
+    });
+  } catch (error) {
+    console.error("Send phone OTP error:", error);
+    return next(new ApiError("Failed to send verification code", 500));
+  }
+});
+
+// @desc    Verify phone OTP for document signing
+// @route   POST /api/dashboard/documents/verify-phone/verify-otp
+// @access  Public (uses accessToken)
+export const verifyPhoneOTP = asyncHandler(async (req, res, next) => {
+  const { accessToken, otp } = req.body;
+
+  if (!accessToken || !otp) {
+    return next(new ApiError("Access token and OTP are required", 400));
+  }
+
+  try {
+    // Find recipient by access token
+    const recipient = await prisma.documentRecipient.findUnique({
+      where: { accessToken },
+      include: {
+        document: {
+          select: {
+            name: true,
+            status: true,
+            expiresAt: true,
+          },
+        },
+      },
+    });
+
+    if (!recipient) {
+      return next(new ApiError("Invalid access token", 404));
+    }
+
+    // Check if phone verification is required
+    if (!recipient.phoneVerificationRequired) {
+      return next(
+        new ApiError("Phone verification not required for this document", 400)
+      );
+    }
+
+    // Check if phone is already verified
+    if (recipient.isPhoneVerified) {
+      return res.status(200).json({
+        success: true,
+        message: "Phone number already verified",
+        data: {
+          verified: true,
+          alreadyVerified: true,
+        },
+      });
+    }
+
+    // Check if verification was initiated
+    if (!recipient.phoneOtp || !recipient.phoneOtpExpires) {
+      return next(
+        new ApiError(
+          "No verification code found. Please request a new code",
+          400
+        )
+      );
+    }
+
+    if (new Date() > recipient.phoneOtpExpires) {
+      return next(
+        new ApiError(
+          "Verification code has expired. Please request a new code",
+          400
+        )
+      );
+    }
+
+    // Verify OTP using Twilio Verify service
+    try {
+      const verifyResult = await twilioVerifyOTP(recipient.phone, otp);
+
+      if (!verifyResult.success) {
+        return next(new ApiError("Invalid verification code", 400));
+      }
+
+      // Mark phone as verified and clear OTP
+      await prisma.documentRecipient.update({
+        where: { id: recipient.id },
+        data: {
+          isPhoneVerified: true,
+          phoneOtp: null,
+          phoneOtpExpires: null,
+        },
+      });
+    } catch (twilioError) {
+      console.error("Twilio verification error:", twilioError);
+      return next(new ApiError("Failed to verify code", 500));
+    }
+
+    // Log verification activity
+    await prisma.documentActivity.create({
+      data: {
+        documentId: recipient.documentId,
+        recipientId: recipient.id,
+        action: "VIEWED", // Using VIEWED as phone verification step
+        details: {
+          step: "phone_verified",
+          phone: recipient.phone,
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Phone verified successfully",
+      data: {
+        verified: true,
+      },
+    });
+  } catch (error) {
+    console.error("Verify phone OTP error:", error);
+    return next(new ApiError("Failed to verify phone", 500));
+  }
+});
+
+// @desc    Get previous recipients for autocomplete
+// @route   GET /api/dashboard/documents/previous-recipients
+// @access  Private
+export const getPreviousRecipients = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const { search } = req.query;
+
+  let whereCondition = {
+    document: {
+      createdById: userId,
+    },
+  };
+
+  // Add search condition if provided
+  if (search && search.trim()) {
+    const searchTerm = search.trim();
+    whereCondition.OR = [
+      {
+        name: {
+          contains: searchTerm,
+          mode: "insensitive",
+        },
+      },
+      {
+        email: {
+          contains: searchTerm,
+          mode: "insensitive",
+        },
+      },
+    ];
+  }
+
+  try {
+    // Get unique recipients based on email (to avoid duplicates)
+    const recipients = await prisma.documentRecipient.findMany({
+      where: whereCondition,
+      select: {
+        name: true,
+        email: true,
+        phone: true,
+      },
+      distinct: ["email"],
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+      take: 20, // Limit results for performance
+    });
+
+    res.status(200).json({
+      success: true,
+      data: recipients,
+    });
+  } catch (error) {
+    console.error("Get previous recipients error:", error);
+    return next(new ApiError("Failed to fetch previous recipients", 500));
   }
 });
