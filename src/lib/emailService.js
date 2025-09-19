@@ -3,7 +3,7 @@ import nodemailer from "nodemailer";
 // Create transporter using Brevo SMTP
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT) || 2587,
+  port: parseInt(process.env.SMTP_PORT) || 587,
   secure: false, // Use TLS
   requireTLS: true, // enforce TLS upgrade
   auth: {
