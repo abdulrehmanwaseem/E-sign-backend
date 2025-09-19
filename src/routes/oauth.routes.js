@@ -27,7 +27,7 @@ oauthRouter.get(
   passport.authenticate("apple", { scope: ["email", "name"] })
 );
 
-oauthRouter.post(
+oauthRouter.get(
   "/apple/callback",
   passport.authenticate("apple", {
     session: false,

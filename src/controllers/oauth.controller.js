@@ -45,7 +45,6 @@ const handleOAuthCallback = async (req, res, provider) => {
                 latitude: location.latitude,
                 longitude: location.longitude,
               },
-              where: { userId: req.user.id },
             },
           }
         : undefined,
