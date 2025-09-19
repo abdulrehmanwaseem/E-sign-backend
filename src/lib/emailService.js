@@ -1,24 +1,13 @@
 import nodemailer from "nodemailer";
+import { SendEmailCommand } from "@aws-sdk/client-sesv2";
+import sesClient from "../config/sesClient.js";
 
-// Create transporter using Brevo SMTP
+// Create transporter using AWS SESv2
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: false, // Use TLS
-  requireTLS: true, // enforce TLS upgrade
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+  SES: {
+    sesClient,
+    SendEmailCommand,
   },
-});
-
-// Verify connection configuration
-transporter.verify(function (error, success) {
-  if (error) {
-    console.log("SMTP connection error:", error);
-  } else {
-    console.log("SMTP server is ready to take our messages");
-  }
 });
 
 /**
@@ -54,11 +43,19 @@ export const sendSigningInvitation = async (
     const mailOptions = {
       from: {
         name: process.env.FROM_NAME || "Fynosign",
-        address: process.env.FROM_EMAIL || "93e6cb001@smtp-brevo.com",
+        address: process.env.SES_FROM_EMAIL || "noreply@fynosign.com",
       },
       to: recipient.email,
       subject: `${senderName} sent you a document to review and sign`,
       html: htmlTemplate,
+      // SES-specific options
+      ses: {
+        ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined,
+        EmailTags: [
+          { Name: "application", Value: "fynosign" },
+          { Name: "email_type", Value: "signing_invitation" },
+        ],
+      },
     };
 
     const result = await transporter.sendMail(mailOptions);
@@ -349,11 +346,19 @@ export const sendCompletionNotification = async (
     const mailOptions = {
       from: {
         name: process.env.FROM_NAME || "Fynosign",
-        address: process.env.FROM_EMAIL || "93e6cb001@smtp-brevo.com",
+        address: process.env.SES_FROM_EMAIL || "noreply@fynosign.com",
       },
       to: sender.email,
       subject: `All recipients have signed "${document.name}"`,
       html: htmlTemplate,
+      // SES-specific options
+      ses: {
+        ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined,
+        EmailTags: [
+          { Name: "application", Value: "fynosign" },
+          { Name: "email_type", Value: "completion_notification" },
+        ],
+      },
     };
 
     const result = await transporter.sendMail(mailOptions);
@@ -379,11 +384,19 @@ export const sendOTPEmail = async (email, otp) => {
     const mailOptions = {
       from: {
         name: process.env.FROM_NAME || "Fynosign",
-        address: process.env.FROM_EMAIL || "93e6cb001@smtp-brevo.com",
+        address: process.env.SES_FROM_EMAIL || "noreply@fynosign.com",
       },
       to: email,
       subject: "Email Verification - Fynosign",
       html: htmlTemplate,
+      // SES-specific options
+      ses: {
+        ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined,
+        EmailTags: [
+          { Name: "application", Value: "fynosign" },
+          { Name: "email_type", Value: "otp_verification" },
+        ],
+      },
     };
 
     const result = await transporter.sendMail(mailOptions);
@@ -409,7 +422,10 @@ export const sendDocumentOpenedNotification = async ({
 }) => {
   try {
     await transporter.sendMail({
-      from: `Fynosign <${process.env.SMTP_USER || "93e6cb001@smtp-brevo.com"}>`,
+      from: {
+        name: process.env.FROM_NAME || "Fynosign",
+        address: process.env.SES_FROM_EMAIL || "noreply@fynosign.com",
+      },
       to: senderEmail,
       subject: `Your document '${documentName}' was opened by ${recipientName}`,
       html: `
@@ -423,6 +439,14 @@ export const sendDocumentOpenedNotification = async ({
           <p style="font-size: 12px; color: #999;">Fynosign - Secure E-signature Platform</p>
         </div>
       `,
+      // SES-specific options
+      ses: {
+        ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined,
+        EmailTags: [
+          { Name: "application", Value: "fynosign" },
+          { Name: "email_type", Value: "document_opened" },
+        ],
+      },
     });
   } catch (error) {
     console.error("Failed to send document opened notification:", error);

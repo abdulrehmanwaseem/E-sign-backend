@@ -13,6 +13,7 @@
   "author": "Abdul Rehman",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.891.0",
     "@pdf-lib/fontkit": "^1.1.1",
     "@prisma/client": "^6.13.0",
     "bcryptjs": "^3.0.2",
