@@ -22,7 +22,6 @@ export const sendPhoneOTP = async (phoneNumber, customOtp = null) => {
   console.log(`Sending OTP to: ${formattedPhone}`);
 
   try {
-    // Use Twilio Verify service to send OTP
     const verification = await client.verify.v2
       .services(TWILIO_VERIFY_SERVICE_SID)
       .verifications.create({
@@ -212,30 +211,4 @@ export const twilioWebhookHandler = (req, res) => {
   }
 
   res.status(200).json({ received: true });
-};
-
-// Handle phone verification conflicts by creating a new verification
-export const cancelPhoneVerification = async (phoneNumber) => {
-  try {
-    // Since Twilio Verify doesn't allow listing/canceling verifications easily,
-    // we'll try to create a new verification which will automatically supersede any existing ones
-    const formattedPhone = formatPhoneNumber(phoneNumber);
-
-    console.log(
-      `Attempting to clear any existing verifications for: ${formattedPhone}`
-    );
-
-    // The approach is to try sending a new verification
-    // Twilio will handle conflicts internally
-    return {
-      success: true,
-      message: "Ready to send new verification",
-    };
-  } catch (error) {
-    console.error("Error in cancel verification:", error);
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
 };

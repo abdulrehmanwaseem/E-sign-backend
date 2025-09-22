@@ -10,12 +10,9 @@ import {
   sendDocumentOpenedNotification,
   sendSigningInvitation,
 } from "../lib/emailService.js";
-import {
-  sendPhoneOTP,
-  twilioVerifyOTP,
-  cancelPhoneVerification,
-} from "../lib/smsService.js";
+import { sendPhoneOTP } from "../lib/smsService.js";
 import { ApiError } from "../utils/ApiError.js";
+import { generateOTP } from "../utils/helpers.js";
 import { createSignedPDF } from "../utils/pdfUtils.js";
 
 // @desc    Get user's document library
@@ -1089,13 +1086,13 @@ export const sendPhoneVerificationOTP = asyncHandler(async (req, res, next) => {
       return next(new ApiError("Document has expired", 400));
     }
 
-    // Send OTP using Twilio Verify service (it handles OTP generation)
-    try {
-      // First, cancel any existing verification for this phone number
-      await cancelPhoneVerification(recipient.phone);
+    // Send OTP using custom OTP like in auth controller
+    const customOtp = generateOTP();
+    const phoneOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      // Now send a fresh OTP
-      const verifyResult = await sendPhoneOTP(recipient.phone);
+    try {
+      // Send custom OTP via SMS
+      const verifyResult = await sendPhoneOTP(recipient.phone, customOtp);
 
       if (!verifyResult.success) {
         return next(new ApiError("Failed to send verification code", 500));
@@ -1123,12 +1120,12 @@ export const sendPhoneVerificationOTP = asyncHandler(async (req, res, next) => {
         });
       }
 
-      // Store verification details in database for tracking
+      // Store custom OTP in database for verification
       await prisma.documentRecipient.update({
         where: { id: recipient.id },
         data: {
-          phoneOtp: verifyResult.sid, // Store Twilio verification SID instead of OTP
-          phoneOtpExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+          phoneOtp: customOtp, // Store custom OTP instead of Twilio SID
+          phoneOtpExpires: phoneOtpExpires,
         },
       });
     } catch (smsError) {
@@ -1216,11 +1213,10 @@ export const verifyPhoneOTP = asyncHandler(async (req, res, next) => {
       );
     }
 
-    // Verify OTP using Twilio Verify service
+    // Verify custom OTP from database instead of Twilio Verify service
     try {
-      const verifyResult = await twilioVerifyOTP(recipient.phone, otp);
-
-      if (!verifyResult.success) {
+      // Check if the provided OTP matches the stored OTP
+      if (recipient.phoneOtp !== otp) {
         return next(new ApiError("Invalid verification code", 400));
       }
 
@@ -1233,8 +1229,8 @@ export const verifyPhoneOTP = asyncHandler(async (req, res, next) => {
           phoneOtpExpires: null,
         },
       });
-    } catch (twilioError) {
-      console.error("Twilio verification error:", twilioError);
+    } catch (verificationError) {
+      console.error("OTP verification error:", verificationError);
       return next(new ApiError("Failed to verify code", 500));
     }
 
