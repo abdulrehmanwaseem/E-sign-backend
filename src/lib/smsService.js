@@ -28,6 +28,7 @@ export const sendPhoneOTP = async (phoneNumber, customOtp = null) => {
       .verifications.create({
         to: formattedPhone,
         channel: "sms",
+        customCode: customOtp,
       });
 
     console.log("OTP sent successfully with SID:", verification.sid);

@@ -11,7 +11,6 @@ import {
   verifyEmail,
   verifyPhoneOTP,
 } from "../controllers/auth.controller.js";
-// Twilio webhook endpoint (public, no auth)
 import {
   loginValidator,
   registerValidator,
