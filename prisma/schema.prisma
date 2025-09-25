@@ -23,6 +23,8 @@ model User {
   otpExpires       DateTime?
   phoneOtp         String?
   phoneOtpExpires  DateTime?
+  resetPasswordToken String?
+  resetPasswordExpires DateTime?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
   role             UserRole    @default(USER)

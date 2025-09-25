@@ -54,7 +54,6 @@ export const getDashboardData = asyncHandler(async (req, res, next) => {
       prisma.document.findMany({
         where: {
           createdById: userId,
-          isLibraryFile: true,
         },
         select: {
           id: true,

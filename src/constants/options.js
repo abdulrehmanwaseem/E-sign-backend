@@ -8,7 +8,15 @@ const cookieOptions = {
 };
 
 const corsOptions = {
-  origin: process.env.CLIENT_URL,
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:4173",
+    "https://fynosign.com",
+    "https://api.fynosign.com",
+    process.env.CLIENT_URL,
+  ],
   credentials: true,
 };
 

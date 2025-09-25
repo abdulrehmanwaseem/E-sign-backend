@@ -570,7 +570,7 @@ export const getDocumentForSigning = asyncHandler(async (req, res, next) => {
         }`,
         recipientName: recipient.name,
         recipientEmail: recipient.email,
-        documentName: document.title,
+        documentName: document.name,
         documentId: document.id,
       });
     }

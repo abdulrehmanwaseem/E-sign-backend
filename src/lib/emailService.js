@@ -409,6 +409,47 @@ export const sendOTPEmail = async (email, otp) => {
 };
 
 /**
+ * Send password reset email
+ * @param {string} email - User's email address
+ * @param {string} resetToken - Password reset token
+ */
+export const sendPasswordResetEmail = async (email, resetToken) => {
+  try {
+    const resetUrl = `${process.env.CLIENT_URL}/auth/reset-password?token=${resetToken}`;
+    const htmlTemplate = createPasswordResetEmailTemplate({
+      email,
+      resetUrl,
+      resetToken,
+    });
+
+    const mailOptions = {
+      from: {
+        name: process.env.FROM_NAME || "Fynosign",
+        address: process.env.SES_FROM_EMAIL || "noreply@fynosign.com",
+      },
+      to: email,
+      subject: "Password Reset Request - Fynosign",
+      html: htmlTemplate,
+      // SES-specific options
+      ses: {
+        ConfigurationSetName: process.env.SES_CONFIGURATION_SET || undefined,
+        EmailTags: [
+          { Name: "application", Value: "fynosign" },
+          { Name: "email_type", Value: "password_reset" },
+        ],
+      },
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log("Password reset email sent successfully:", result.messageId);
+    return result;
+  } catch (error) {
+    console.error("Error sending password reset email:", error);
+    throw new Error("Failed to send password reset email");
+  }
+};
+
+/**
  * Send notification to sender when recipient opens the signing page
  * @param {Object} params - senderEmail, senderName, recipientName, recipientEmail, documentName, documentId
  */
@@ -945,6 +986,226 @@ const createOTPEmailTemplate = ({ email, otp }) => {
                 Fynosign - Secure Electronic Signature Platform<br>
                 Making document signing simple, secure, and legally binding.
             </div>
+        </div>
+    </div>
+</body>
+</html>
+  `;
+};
+
+/**
+ * Create HTML email template for password reset
+ */
+const createPasswordResetEmailTemplate = ({ email, resetUrl, resetToken }) => {
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Reset - Fynosign</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .security-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        .message {
+            font-size: 18px;
+            color: #2d3748;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .reset-button {
+            display: inline-block;
+            background-color: #121212;
+            text-color: white;
+            text-decoration: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .reset-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .expiry-notice {
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 30px 0;
+            font-size: 14px;
+            color: #92400e;
+        }
+        
+        .backup-link {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+            font-size: 14px;
+            color: #64748b;
+        }
+        
+        .backup-link p {
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #475569;
+        }
+        
+        .backup-link code {
+            background-color: #e2e8f0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            color: #1e293b;
+        }
+        
+        .footer {
+            background-color: #f8fafc;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .footer p {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .security-notice {
+            background-color: #fee2e2;
+            border: 1px solid #fca5a5;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #991b1b;
+        }
+        
+        @media (max-width: 600px) {
+            .email-container {
+                margin: 0;
+                border-radius: 0;
+            }
+            
+            .content {
+                padding: 30px 20px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .footer {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="security-icon">🔒</div>
+            <h1>Password Reset Request</h1>
+            <p>Reset your Fynosign account password</p>
+        </div>
+        
+        <div class="content">
+            <div class="message">
+                Hello,<br><br>
+                We received a request to reset the password for your Fynosign account (<strong>${email}</strong>).
+                <br><br>
+                Click the button below to reset your password:
+            </div>
+            
+            <table cellpadding="0" cellspacing="0" border="0" class="reset-button">
+                <tr>
+                    <td style="background-color: #121212; border-radius: 8px;">
+                        <a href="${resetUrl}" style="color: white !important; text-decoration: none !important; font-weight: 600; font-size: 16px; display: block;">
+                            Reset My Password
+                        </a>
+                    </td>
+                </tr>
+            </table>                
+            <div class="expiry-notice">
+                <strong>⏰ Important:</strong> This password reset link will expire in <strong>30 minutes</strong>. 
+                Please reset your password promptly for security reasons.
+            </div>
+            
+            <div class="backup-link">
+                <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                <code>${resetUrl}</code>
+            </div>
+            
+            <div class="security-notice">
+                <strong>🛡️ Security Notice:</strong> If you didn't request this password reset, please ignore this email. 
+                Your password will remain unchanged, and no further action is required.
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>This is an automated message from Fynosign.</p>
+            <p>For support, contact us at support@fynosign.com</p>
+            <p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">
+                © ${new Date().getFullYear()} Fynosign. All rights reserved.
+            </p>
         </div>
     </div>
 </body>

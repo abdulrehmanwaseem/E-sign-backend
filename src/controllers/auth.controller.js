@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import TryCatch from "express-async-handler";
 import { prisma } from "../config/dbConnection.js";
 import { USER_TOKEN, cookieOptions } from "../constants/options.js";
-import { sendOTPEmail } from "../lib/emailService.js";
+import { sendOTPEmail, sendPasswordResetEmail } from "../lib/emailService.js";
 import {
   formatPhoneNumber,
   sendPhoneOTP,
@@ -457,6 +457,120 @@ const resendPhoneOTP = TryCatch(async (req, res, next) => {
   });
 });
 
+// Forgot Password - Send reset email
+const forgotPassword = TryCatch(async (req, res, next) => {
+  const { email } = req.body;
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (!user) {
+    return next(new ApiError("User with this email does not exist", 404));
+  }
+
+  // Check if user has a password (not OAuth only)
+  if (!user.password) {
+    return next(
+      new ApiError(
+        "This account uses social login. Please login with your OAuth provider.",
+        400
+      )
+    );
+  }
+
+  // Generate reset token
+  const resetToken = generateOTP() + generateOTP(); // 12 digit token
+  const resetTokenExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+  // Save reset token to database
+  await prisma.user.update({
+    where: { email },
+    data: {
+      resetPasswordToken: resetToken,
+      resetPasswordExpires: resetTokenExpires,
+    },
+  });
+
+  // Send reset email
+  try {
+    await sendPasswordResetEmail(email, resetToken);
+
+    res.status(200).json({
+      status: "success",
+      message: "Password reset link sent to your email",
+    });
+  } catch (error) {
+    // Clear the reset token if email fails
+    await prisma.user.update({
+      where: { email },
+      data: {
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      },
+    });
+
+    console.error("Failed to send password reset email:", error);
+    return next(
+      new ApiError("Failed to send reset email. Please try again.", 500)
+    );
+  }
+});
+
+// Reset Password - Update password with token
+const resetPassword = TryCatch(async (req, res, next) => {
+  const { token, password } = req.body;
+
+  const user = await prisma.user.findFirst({
+    where: {
+      resetPasswordToken: token,
+      resetPasswordExpires: {
+        gt: new Date(), // Token not expired
+      },
+    },
+  });
+
+  if (!user) {
+    return next(new ApiError("Invalid or expired reset token", 400));
+  }
+
+  // Check if user has a password (not OAuth only)
+  if (!user.password) {
+    return next(
+      new ApiError(
+        "This account uses social login. Please login with your OAuth provider.",
+        400
+      )
+    );
+  }
+
+  // Hash new password
+  const hashedPassword = await bcrypt.hash(password, 8);
+
+  // Update password and clear reset token
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPassword,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+    },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+    },
+  });
+
+  res.status(200).json({
+    status: "success",
+    message: "Password reset successfully",
+    user: updatedUser,
+  });
+});
+
 // Twilio webhook handler
 const twilioWebhookHandler = (req, res) => {
   const event = req.body;
@@ -475,5 +589,7 @@ export {
   signup,
   verifyEmail,
   verifyPhoneOTP,
+  forgotPassword,
+  resetPassword,
   twilioWebhookHandler,
 };

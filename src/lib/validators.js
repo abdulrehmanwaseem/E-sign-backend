@@ -70,6 +70,23 @@ const verifyPhoneOTPValidator = () => [
     .withMessage("OTP must be 6 digits"),
 ];
 
+const forgotPasswordValidator = () => [
+  body("email")
+    .isEmail()
+    .normalizeEmail()
+    .withMessage("Please enter a valid email address"),
+];
+
+const resetPasswordValidator = () => [
+  body("token").isString().notEmpty().withMessage("Reset token is required"),
+  body("password")
+    .isString()
+    .notEmpty()
+    .withMessage("Password is required")
+    .isLength({ min: 6 })
+    .withMessage("Password must be at least 6 characters long"),
+];
+
 export {
   loginValidator,
   registerValidator,
@@ -78,4 +95,6 @@ export {
   resendOTPValidator,
   sendPhoneVerificationValidator,
   verifyPhoneOTPValidator,
+  forgotPasswordValidator,
+  resetPasswordValidator,
 };

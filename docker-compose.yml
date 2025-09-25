@@ -1,0 +1,28 @@
+services:
+  app:
+    platform: linux/amd64
+    image: backend:latest
+    container_name: pengin-backend-app
+    restart: unless-stopped
+    networks:
+      - pengin
+    ports:
+      - "5000:5000"
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    networks:
+      - pengin
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+networks:
+  pengin:
+    driver: bridge

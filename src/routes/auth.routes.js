@@ -10,6 +10,8 @@ import {
   twilioWebhookHandler,
   verifyEmail,
   verifyPhoneOTP,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/auth.controller.js";
 import {
   loginValidator,
@@ -19,6 +21,8 @@ import {
   validateHandler,
   verifyEmailValidator,
   verifyPhoneOTPValidator,
+  forgotPasswordValidator,
+  resetPasswordValidator,
 } from "../lib/validators.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
 
@@ -35,6 +39,12 @@ authRouter
 authRouter
   .route("/resend-otp")
   .post(resendOTPValidator(), validateHandler, resendOTP);
+authRouter
+  .route("/forgot-password")
+  .post(forgotPasswordValidator(), validateHandler, forgotPassword);
+authRouter
+  .route("/reset-password")
+  .post(resetPasswordValidator(), validateHandler, resetPassword);
 authRouter.route("/logout").post(logout);
 
 // Phone verification routes (protected - requires email verification first)
