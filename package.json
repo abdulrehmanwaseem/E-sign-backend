@@ -1,7 +1,7 @@
 {
-  "name": "fynosign-api",
+  "name": "e-sign-api",
   "version": "1.0.0",
-  "description": "Fynosign application programming interface (API)",
+  "description": "E-Sign application programming interface (API)",
   "main": "server.js",
   "type": "module",
   "scripts": {
