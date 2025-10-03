@@ -231,6 +231,44 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     },
   });
 
+  // Get PRO users for subscriptions count
+  const proUsers = await prisma.user.findMany({
+    where: {
+      userType: "PRO",
+      ...dateFilter,
+    },
+    select: {
+      id: true,
+      createdAt: true,
+      currentPeriodEnd: true,
+      subscriptionStatus: true,
+    },
+  });
+
+  console.log("PRO Users:", proUsers);
+  // Calculate total earned ($9.98/month for PRO users)
+  const PRO_MONTHLY_PRICE = 9.98;
+  let totalEarned = 0;
+
+  proUsers.forEach((user) => {
+    // Only count active subscriptions
+    if (
+      user.subscriptionStatus === "active" ||
+      user.subscriptionStatus === "trialing" ||
+      user.subscriptionStatus === "past_due"
+    ) {
+      const subscriptionStart = new Date(user.createdAt);
+      const now = new Date();
+
+      // Calculate months subscribed (minimum 1 month)
+      const monthsSubscribed = Math.max(
+        1,
+        Math.ceil((now - subscriptionStart) / (1000 * 60 * 60 * 24 * 30))
+      );
+      totalEarned += monthsSubscribed * PRO_MONTHLY_PRICE;
+    }
+  });
+
   const usersWithDevices = await prisma.user.findMany({
     where: dateFilter,
     select: { device: true },
@@ -303,8 +341,8 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     success: true,
     data: {
       totalUsers,
-      subscriptions: 0,
-      totalEarned: 0,
+      subscriptions: proUsers.length,
+      totalEarned: Math.round(totalEarned * 100) / 100, // Round to 2 decimal places
       totalDocuments,
       totalDocumentsSigned,
       totalDevices,
